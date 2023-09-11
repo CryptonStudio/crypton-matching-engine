@@ -1,8 +1,8 @@
 package matching
 
 import (
-	"github.com/cryptonstudio/crypton-matching/types/avl"
-	"github.com/cryptonstudio/crypton-matching/types/list"
+	"github.com/cryptonstudio/crypton-matching-engine/types/avl"
+	"github.com/cryptonstudio/crypton-matching-engine/types/list"
 )
 
 // Order contains information about an order.

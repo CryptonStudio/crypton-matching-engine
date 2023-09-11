@@ -3,8 +3,8 @@ package matching
 import (
 	"sync"
 
-	"github.com/cryptonstudio/crypton-matching/types/avl"
-	"github.com/cryptonstudio/crypton-matching/types/list"
+	"github.com/cryptonstudio/crypton-matching-engine/types/avl"
+	"github.com/cryptonstudio/crypton-matching-engine/types/list"
 )
 
 // Allocator is an object encapsulating all used objects allocation using sync.Pool internally.

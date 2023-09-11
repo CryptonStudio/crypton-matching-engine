@@ -5,7 +5,7 @@ import (
 
 	"github.com/tidwall/hashmap"
 
-	"github.com/cryptonstudio/crypton-matching/types/avl"
+	"github.com/cryptonstudio/crypton-matching-engine/types/avl"
 )
 
 // Order book is used to keep buy and sell orders in a price level order.

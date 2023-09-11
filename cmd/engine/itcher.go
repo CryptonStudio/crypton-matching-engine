@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cryptonstudio/crypton-matching/matching"
-	"github.com/cryptonstudio/crypton-matching/providers/nasdaq/itch"
+	"github.com/cryptonstudio/crypton-matching-engine/matching"
+	"github.com/cryptonstudio/crypton-matching-engine/providers/nasdaq/itch"
 )
 
 type ITCH struct {

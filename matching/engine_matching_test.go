@@ -6,8 +6,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
-	matching "github.com/cryptonstudio/crypton-matching/matching"
-	mockmatching "github.com/cryptonstudio/crypton-matching/matching/mocks"
+	matching "github.com/cryptonstudio/crypton-matching-engine/matching"
+	mockmatching "github.com/cryptonstudio/crypton-matching-engine/matching/mocks"
 )
 
 func TestMarketOrdersMatching(t *testing.T) {

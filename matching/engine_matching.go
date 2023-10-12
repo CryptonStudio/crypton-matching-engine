@@ -82,9 +82,14 @@ func (e *Engine) match(ob *OrderBook) {
 					continue
 				}
 
+				// Check and delete linked orders
+				e.deleteLinkedOrder(ob, executingOrder, false)
+				e.deleteLinkedOrder(ob, reducingOrder, false)
+
 				// Call the corresponding handlers
 				e.handler.OnExecuteOrder(ob, executingOrder, price, quantity)
 				e.handler.OnExecuteOrder(ob, reducingOrder, price, quantity)
+
 				if executingOrder.id < reducingOrder.id {
 					e.handler.OnExecuteTrade(ob, executingOrder, reducingOrder, price, quantity)
 				} else {
@@ -302,6 +307,10 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 				// Matching is not available
 				return
 			}
+
+			// Check and delete linked orders
+			e.deleteLinkedOrder(ob, executingOrder, false)
+			e.deleteLinkedOrder(ob, order, false)
 
 			// Call the corresponding handlers
 			e.handler.OnExecuteOrder(ob, executingOrder, price, quantity)

@@ -559,3 +559,21 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error 
 
 	return nil
 }
+
+// Checks linked OCO order and deletes if it exists
+func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, recursive bool) error {
+
+	if order.linkedOrderID == 0 {
+		return nil
+	}
+
+	linkedOrder := ob.Order(order.linkedOrderID)
+	if linkedOrder != nil {
+		err := e.deleteOrder(ob, linkedOrder, false)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

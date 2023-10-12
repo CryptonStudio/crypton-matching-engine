@@ -65,6 +65,9 @@ type Order struct {
 	// Market order by using quote quantity.
 	marketQuoteMode bool // by default is false, set to true only if quantity = 0 and quoteQuantity > 0
 
+	// Linked order in OCO order pair (used for OCO orders only)
+	linkedOrderID uint64
+
 	// Pointer to the price level where the order is placed.
 	priceLevel *avl.Node[Uint, *PriceLevelL3]
 
@@ -288,6 +291,11 @@ func (o *Order) IsExecuted() bool {
 // Available returns order available amount equivalents to rest user locked amount of asset.
 func (o *Order) Available() Uint {
 	return o.available
+}
+
+// Linked order in OCO order pair (used for OCO orders only)
+func (o *Order) LinkedOrderID() Uint {
+	return o.LinkedOrderID()
 }
 
 ////////////////////////////////////////////////////////////////

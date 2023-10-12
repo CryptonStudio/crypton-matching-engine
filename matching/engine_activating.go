@@ -120,6 +120,9 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) bool {
 
 func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) bool {
 
+	// Check and delete linked orders (OCO)
+	e.deleteLinkedOrder(ob, order, false)
+
 	// Delete the stop-limit order from the order book
 	_, err := ob.deleteOrder(ob.treeForOrder(order), order)
 	if err != nil {

@@ -299,8 +299,8 @@ func (o *Order) Available() Uint {
 }
 
 // Linked order in OCO order pair (used for OCO orders only)
-func (o *Order) LinkedOrderID() Uint {
-	return o.LinkedOrderID()
+func (o *Order) LinkedOrderID() uint64 {
+	return o.linkedOrderID
 }
 
 ////////////////////////////////////////////////////////////////

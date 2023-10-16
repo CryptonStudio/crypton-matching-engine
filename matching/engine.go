@@ -223,6 +223,75 @@ func (e *Engine) AddOrder(order Order) error {
 	return e.performOrderBookTask(ob, task)
 }
 
+// AddOrdersPair adds new orders pair (OCO orders) to the engine.
+// First order should be stop-limit order and second one should be limit order.
+func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
+
+	// Validate orders parameters
+	if err := stopLimitOrder.Validate(); err != nil {
+		return err
+	}
+	if err := limitOrder.Validate(); err != nil {
+		return err
+	}
+
+	// Link OCO orders to each other
+	stopLimitOrder.linkedOrderID = limitOrder.id
+	limitOrder.linkedOrderID = stopLimitOrder.id
+
+	// Get the valid order book for the order
+	ob := e.OrderBook(stopLimitOrder.symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
+	}
+
+	task := func(ob *OrderBook) error {
+
+		// Check market price
+		if stopLimitOrder.IsBuy() {
+			if stopLimitOrder.stopPrice.LessThan(ob.GetMarketPrice()) {
+				return ErrBuyOCOStopPriceLessThanMarketPrice
+			}
+			if limitOrder.price.GreaterThan(ob.GetMarketPrice()) {
+				return ErrBuyOCOLimitPriceGreaterThanMarketPrice
+			}
+		} else {
+			if stopLimitOrder.stopPrice.GreaterThan(ob.GetMarketPrice()) {
+				return ErrSellOCOStopPriceGreaterThanMarketPrice
+			}
+			if limitOrder.price.LessThan(ob.GetMarketPrice()) {
+				return ErrSellOCOLimitPriceLessThanMarketPrice
+			}
+		}
+
+		// Add stop-limit order first
+		err := e.addStopLimitOrder(ob, stopLimitOrder, false)
+		if err != nil {
+			return err
+		}
+
+		// Find stop-limit order in orderbook
+		stopLimitOrderFromOB := ob.Order(stopLimitOrder.id)
+
+		// Check if stop-limit order has been executed or activated
+		if stopLimitOrderFromOB == nil || stopLimitOrderFromOB.Type() == OrderTypeLimit {
+			// Imitation of order placing and cancellation
+			e.handler.OnAddOrder(ob, &limitOrder)
+			e.handler.OnDeleteOrder(ob, &limitOrder)
+		} else {
+			// Add limit order
+			err = e.addLimitOrder(ob, limitOrder, false)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	return e.performOrderBookTask(ob, task)
+}
+
 // ReduceOrder reduces the order by the given quantity.
 func (e *Engine) ReduceOrder(symbolID uint32, orderID uint64, quantity Uint) error {
 
@@ -339,6 +408,9 @@ func (e *Engine) DeleteOrder(symbolID uint32, orderID uint64) error {
 		if order == nil {
 			return ErrOrderNotFound
 		}
+
+		// Delete linked order if it exists
+		e.deleteLinkedOrder(ob, order, false)
 
 		// Delete the order
 		return e.deleteOrder(ob, order, false)

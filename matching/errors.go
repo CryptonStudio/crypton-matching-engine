@@ -35,4 +35,10 @@ var (
 	ErrInvalidOrderParameter    = errors.New("invalid order parameter")
 	ErrInvalidOrderQuantity     = errors.New("invalid order quantity")
 	ErrForbiddenManualExecution = errors.New("manual execution is forbidden for automatically matching engine")
+
+	// OCO
+	ErrBuyOCOStopPriceLessThanMarketPrice     = errors.New("stop price must be greater than market price (buy OCO order)")
+	ErrBuyOCOLimitPriceGreaterThanMarketPrice = errors.New("limit order price must be less than market price (buy OCO order)")
+	ErrSellOCOStopPriceGreaterThanMarketPrice = errors.New("stop price must be less than market price (sell OCO order)")
+	ErrSellOCOLimitPriceLessThanMarketPrice   = errors.New("limit order price must be greater than market price (sell OCO order)")
 )

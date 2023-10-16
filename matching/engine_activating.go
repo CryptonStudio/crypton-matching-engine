@@ -14,8 +14,8 @@ func (e *Engine) activateAllStopOrders(ob *OrderBook) (activated bool) {
 		stop = true
 
 		// Try to activate buy stop orders
-		if e.activateStopOrders(ob, OrderSideBuy, ob.TopBuyStop(), ob.GetMarketPriceAsk()) ||
-			e.activateStopOrders(ob, OrderSideBuy, ob.TopTrailingBuyStop(), ob.GetMarketPriceAsk()) {
+		if e.activateStopOrders(ob, OrderSideBuy, ob.TopBuyStop(), ob.GetMarketPrice()) ||
+			e.activateStopOrders(ob, OrderSideBuy, ob.TopTrailingBuyStop(), ob.GetMarketPrice()) {
 			activated = true
 			stop = false
 		}
@@ -24,8 +24,8 @@ func (e *Engine) activateAllStopOrders(ob *OrderBook) (activated bool) {
 		e.recalculateTrailingStopPrice(ob, OrderSideSell, ob.TopAsk())
 
 		// Try to activate sell stop orders
-		if e.activateStopOrders(ob, OrderSideSell, ob.TopSellStop(), ob.GetMarketPriceBid()) ||
-			e.activateStopOrders(ob, OrderSideSell, ob.TopTrailingSellStop(), ob.GetMarketPriceBid()) {
+		if e.activateStopOrders(ob, OrderSideSell, ob.TopSellStop(), ob.GetMarketPrice()) ||
+			e.activateStopOrders(ob, OrderSideSell, ob.TopTrailingSellStop(), ob.GetMarketPrice()) {
 			activated = true
 			stop = false
 		}
@@ -119,6 +119,9 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) bool {
 }
 
 func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) bool {
+
+	// Check and delete linked orders (OCO)
+	e.deleteLinkedOrder(ob, order, false)
 
 	// Delete the stop-limit order from the order book
 	_, err := ob.deleteOrder(ob.treeForOrder(order), order)

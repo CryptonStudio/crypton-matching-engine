@@ -30,6 +30,7 @@ type OrderBook struct {
 	trailingSellStop avl.Tree[Uint, *PriceLevelL3]
 
 	// Market last and trailing prices
+	marketPrice      Uint
 	lastBidPrice     Uint
 	lastAskPrice     Uint
 	matchingBidPrice Uint
@@ -75,6 +76,7 @@ func NewOrderBook(allocator *Allocator, symbol Symbol, taskQueueSize int) *Order
 		sellStop:         newPriceLevelTree(allocator),
 		trailingBuyStop:  newPriceLevelReversedTree(allocator),
 		trailingSellStop: newPriceLevelTree(allocator),
+		marketPrice:      NewZeroUint(),
 		lastBidPrice:     NewZeroUint(),
 		lastAskPrice:     NewMaxUint(),
 		matchingBidPrice: NewZeroUint(),
@@ -204,6 +206,10 @@ func (ob *OrderBook) GetTrailingSellStop(price Uint) *avl.Node[Uint, *PriceLevel
 ////////////////////////////////////////////////////////////////
 // Market prices getters
 ////////////////////////////////////////////////////////////////
+
+func (ob *OrderBook) GetMarketPrice() Uint {
+	return ob.marketPrice
+}
 
 func (ob *OrderBook) GetMarketPriceBid() Uint {
 	matchingPrice, topPrice := ob.matchingBidPrice, NewZeroUint()
@@ -418,9 +424,13 @@ func (ob *OrderBook) deletePriceLevel(tree *avl.Tree[Uint, *PriceLevelL3], price
 	return err
 }
 
-////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////
 // Market prices management
-////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////
+
+func (ob *OrderBook) updateMarketPrice(price Uint) {
+	ob.marketPrice = price
+}
 
 func (ob *OrderBook) updateLastPrice(side OrderSide, price Uint) {
 	if side == OrderSideBuy {

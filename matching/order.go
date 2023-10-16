@@ -124,6 +124,11 @@ func (o *Order) IsTrailingStopLimit() bool {
 	return o.orderType == OrderTypeTrailingStopLimit
 }
 
+// IsTrailingStop returns true if trailing stop order.
+func (o *Order) IsTakeProfit() bool {
+	return o.takeProfit
+}
+
 ////////////////////////////////////////////////////////////////
 
 // Side returns the market side of the order.

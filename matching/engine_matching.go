@@ -28,7 +28,6 @@ func (e *Engine) match(ob *OrderBook) {
 
 			// Execute crossed orders
 			for orderBid != nil && orderAsk != nil && orderBid.Value != nil && orderAsk.Value != nil {
-
 				// Special case for 'All-Or-None' orders
 				if orderBid.Value.IsAON() || orderAsk.Value.IsAON() {
 					// Calculate the matching chain
@@ -96,9 +95,12 @@ func (e *Engine) match(ob *OrderBook) {
 					e.handler.OnExecuteTrade(ob, reducingOrder, executingOrder, price, quantity)
 				}
 
-				// Update the corresponding market price
-				ob.updateLastPrice(executingOrder.side, price)
-				ob.updateMatchingPrice(executingOrder.side, price)
+				// Update common market price
+				ob.updateMarketPrice(price)
+
+				// Update the corresponding market price (think if needed)
+				// ob.updateLastPrice(executingOrder.side, price)
+				// ob.updateMatchingPrice(executingOrder.side, price)
 
 				// Decrease the order available quantity
 				if executingOrder.IsBuy() {
@@ -121,9 +123,9 @@ func (e *Engine) match(ob *OrderBook) {
 				// Delete the executing order from the order book
 				e.deleteOrder(ob, executingOrder, true)
 
-				// Update the corresponding market price
-				ob.updateLastPrice(reducingOrder.side, price)
-				ob.updateMatchingPrice(reducingOrder.side, price)
+				// Update the corresponding market price (think if needed)
+				// ob.updateLastPrice(reducingOrder.side, price)
+				// ob.updateMatchingPrice(reducingOrder.side, price)
 
 				// Decrease the order available quantity
 				if reducingOrder.IsBuy() {
@@ -150,8 +152,8 @@ func (e *Engine) match(ob *OrderBook) {
 			}
 
 			// Activate stop orders only if the current price level changed
-			e.activateStopOrders(ob, OrderSideBuy, ob.TopBid(), ob.GetMarketPriceAsk())
-			e.activateStopOrders(ob, OrderSideSell, ob.TopAsk(), ob.GetMarketPriceBid())
+			e.activateStopOrders(ob, OrderSideBuy, ob.TopBid(), ob.GetMarketPrice())
+			e.activateStopOrders(ob, OrderSideSell, ob.TopAsk(), ob.GetMarketPrice())
 		}
 
 		// Activate stop orders until there is something to activate
@@ -167,7 +169,6 @@ func (e *Engine) match(ob *OrderBook) {
 
 // matchLimitOrder matches given limit order in given order book.
 func (e *Engine) matchLimitOrder(ob *OrderBook, order *Order) {
-
 	// Match the limit order
 	e.matchOrder(ob, order)
 }
@@ -242,7 +243,7 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 			}
 		}
 
-		// Special case for 'Fill-Or-Kill' and 'All-Or-None' orders
+		// Special case for 'Fill-Or-Kill' and 'All-Or-None' orders (workaround is needed)
 		if order.IsFOK() || order.IsAON() {
 
 			// Calculate the matching chain
@@ -321,9 +322,12 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 				e.handler.OnExecuteTrade(ob, order, executingOrder, price, quantity)
 			}
 
-			// Update the corresponding market price
-			ob.updateLastPrice(executingOrder.side, price)
-			ob.updateMatchingPrice(executingOrder.side, price)
+			// Update common market price
+			ob.updateMarketPrice(price)
+
+			// Update the corresponding market price (think if needed)
+			// ob.updateLastPrice(executingOrder.side, price)
+			// ob.updateMatchingPrice(executingOrder.side, price)
 
 			// Decrease the order available quantity
 			if executingOrder.IsBuy() {
@@ -339,9 +343,9 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 			// Reduce the executing order in the order book
 			e.reduceOrder(ob, executingOrder, quantity, true)
 
-			// Update the corresponding market price
-			ob.updateLastPrice(order.side, price)
-			ob.updateMatchingPrice(order.side, price)
+			// Update the corresponding market price (think if needed)
+			// ob.updateLastPrice(order.side, price)
+			// ob.updateMatchingPrice(order.side, price)
 
 			// Decrease the order available quantity
 			if order.IsBuy() {
@@ -369,7 +373,7 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 }
 
 ////////////////////////////////////////////////////////////////
-// Matching chains
+// Matching chains (not ready for production)
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) executeMatchingChain(

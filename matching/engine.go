@@ -251,17 +251,17 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 
 		// Check market price
 		if stopLimitOrder.IsBuy() {
-			if stopLimitOrder.stopPrice.LessThan(ob.GetMarketPriceBid()) {
+			if stopLimitOrder.stopPrice.LessThan(ob.GetMarketPrice()) {
 				return errors.New("")
 			}
-			if limitOrder.price.GreaterThan(ob.GetMarketPriceBid()) {
+			if limitOrder.price.GreaterThan(ob.GetMarketPrice()) {
 				return errors.New("")
 			}
 		} else {
-			if stopLimitOrder.stopPrice.GreaterThan(ob.GetMarketPriceAsk()) {
+			if stopLimitOrder.stopPrice.GreaterThan(ob.GetMarketPrice()) {
 				return errors.New("")
 			}
-			if limitOrder.price.LessThan(ob.GetMarketPriceAsk()) {
+			if limitOrder.price.LessThan(ob.GetMarketPrice()) {
 				return errors.New("")
 			}
 		}

@@ -22,24 +22,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 	setupHandler := func(t *testing.T) matching.Handler {
 		handler := mockmatching.NewMockHandler(ctrl)
-		handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
-		handler.EXPECT().OnAddOrder(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnUpdateOrder(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnAddPriceLevel(gomock.Any(), gomock.Any()).Do(
-			func(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {
-				t.Logf("add price level for %s\n", update.Price.ToFloatString())
-			}).AnyTimes()
-		handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).AnyTimes()
-		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-			func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint) {
-				t.Logf("order %d (order baseq = %s) executed: price %s, quantity %s\n",
-					order.ID(), order.RestQuantity().ToFloatString(),
-					price.ToFloatString(), quantity.ToFloatString())
-			}).AnyTimes()
-		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+		setupMockHandler(t, handler)
 
 		return handler
 	}
@@ -200,25 +183,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 
 	setupHandler := func(t *testing.T) matching.Handler {
 		handler := mockmatching.NewMockHandler(ctrl)
-		handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
-		handler.EXPECT().OnAddOrder(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnUpdateOrder(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnAddPriceLevel(gomock.Any(), gomock.Any()).Do(
-			func(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {
-				t.Logf("add price level for %s\n", update.Price.ToFloatString())
-			}).AnyTimes()
-		handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).AnyTimes()
-		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-			func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint) {
-				t.Logf("order %d (order baseq = %s) executed: price %s, quantity %s\n",
-					order.ID(), order.RestQuantity().ToFloatString(),
-					price.ToFloatString(), quantity.ToFloatString())
-			}).AnyTimes()
-		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-
+		setupMockHandler(t, handler)
 		return handler
 	}
 
@@ -531,26 +496,7 @@ func TestOCOOrders(t *testing.T) {
 
 	setupHandler := func(t *testing.T) matching.Handler {
 		handler := mockmatching.NewMockHandler(ctrl)
-		handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
-		handler.EXPECT().OnAddOrder(gomock.Any(), gomock.Any()).AnyTimes()
-
-		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnUpdateOrder(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnAddPriceLevel(gomock.Any(), gomock.Any()).Do(
-			func(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {
-				t.Logf("add price level for %s\n", update.Price.ToFloatString())
-			}).AnyTimes()
-		handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
-		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).AnyTimes()
-		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-			func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint) {
-				t.Logf("order %d (order baseq = %s) executed: price %s, quantity %s\n",
-					order.ID(), order.RestQuantity().ToFloatString(),
-					price.ToFloatString(), quantity.ToFloatString())
-			}).AnyTimes()
-		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-
+		setupMockHandler(t, handler)
 		return handler
 	}
 
@@ -600,6 +546,210 @@ func TestOCOOrders(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, matching.OrderTypeStopLimit, ob.Order(6).Type()) // stop-limit order is placed
 		require.Equal(t, matching.OrderTypeLimit, ob.Order(7).Type())     // limit is placed
+	})
+
+	t.Run("buy OCO stop price is less than market price", func(t *testing.T) {
+		// in place to test onError() calls
+		handler := mockmatching.NewMockHandler(ctrl)
+		setupMockHandler(t, handler)
+
+		engine := matching.NewEngine(handler, false)
+		engine.EnableMatching()
+
+		setupMarketState(t, engine, symbolID)
+		ob := engine.OrderBook(symbolID)
+
+		handler.EXPECT().OnError(ob, matching.ErrBuyOCOStopPriceLessThanMarketPrice)
+
+		err := engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			uint64(5),
+			matching.OrderSideBuy,
+			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
+			matching.NewUint(1).Mul64(matching.UintPrecision),
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+		require.True(t,
+			ob.GetMarketPrice().Equals(matching.NewUint(30).Mul64(matching.UintPrecision)),
+		)
+
+		err = engine.AddOrdersPair(
+			matching.NewStopLimitOrder(
+				symbolID,
+				uint64(6),
+				matching.OrderSideBuy,
+				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
+				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
+				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
+				matching.NewMaxUint(),
+				matching.NewMaxUint(),
+			),
+			matching.NewLimitOrder(
+				symbolID,
+				uint64(7),
+				matching.OrderSideBuy,
+				matching.NewUint(15).Mul64(matching.UintPrecision), // price 15
+				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
+				matching.NewMaxUint(),
+				matching.NewMaxUint(),
+			),
+		)
+		require.Error(t, matching.ErrBuyOCOStopPriceLessThanMarketPrice)
+	})
+
+	t.Run("buy OCO limit order price is greater than market price", func(t *testing.T) {
+		// in place to test onError() calls
+		handler := mockmatching.NewMockHandler(ctrl)
+		setupMockHandler(t, handler)
+
+		engine := matching.NewEngine(handler, false)
+		engine.EnableMatching()
+
+		setupMarketState(t, engine, symbolID)
+		ob := engine.OrderBook(symbolID)
+
+		handler.EXPECT().OnError(ob, matching.ErrBuyOCOLimitPriceGreaterThanMarketPrice)
+
+		err := engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			uint64(5),
+			matching.OrderSideBuy,
+			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
+			matching.NewUint(1).Mul64(matching.UintPrecision),
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+		require.True(t,
+			ob.GetMarketPrice().Equals(matching.NewUint(30).Mul64(matching.UintPrecision)),
+		)
+
+		err = engine.AddOrdersPair(
+			matching.NewStopLimitOrder(
+				symbolID,
+				uint64(6),
+				matching.OrderSideBuy,
+				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
+				matching.NewUint(35).Mul64(matching.UintPrecision), // stop-price 35
+				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
+				matching.NewMaxUint(),
+				matching.NewMaxUint(),
+			),
+			matching.NewLimitOrder(
+				symbolID,
+				uint64(7),
+				matching.OrderSideBuy,
+				matching.NewUint(32).Mul64(matching.UintPrecision), // price 32
+				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
+				matching.NewMaxUint(),
+				matching.NewMaxUint(),
+			),
+		)
+		require.Error(t, matching.ErrBuyOCOLimitPriceGreaterThanMarketPrice)
+	})
+
+	t.Run("sell OCO stop price is greater than market price", func(t *testing.T) {
+		// in place to test onError() calls
+		handler := mockmatching.NewMockHandler(ctrl)
+		setupMockHandler(t, handler)
+
+		engine := matching.NewEngine(handler, false)
+		engine.EnableMatching()
+
+		setupMarketState(t, engine, symbolID)
+		ob := engine.OrderBook(symbolID)
+
+		handler.EXPECT().OnError(ob, matching.ErrSellOCOStopPriceGreaterThanMarketPrice)
+
+		err := engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			uint64(5),
+			matching.OrderSideBuy,
+			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
+			matching.NewUint(1).Mul64(matching.UintPrecision),
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+		require.True(t,
+			ob.GetMarketPrice().Equals(matching.NewUint(30).Mul64(matching.UintPrecision)),
+		)
+
+		err = engine.AddOrdersPair(
+			matching.NewStopLimitOrder(
+				symbolID,
+				uint64(6),
+				matching.OrderSideSell,
+				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
+				matching.NewUint(35).Mul64(matching.UintPrecision), // stop-price 35
+				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
+				matching.NewMaxUint(),
+				matching.NewMaxUint(),
+			),
+			matching.NewLimitOrder(
+				symbolID,
+				uint64(7),
+				matching.OrderSideSell,
+				matching.NewUint(32).Mul64(matching.UintPrecision), // price 32
+				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
+				matching.NewMaxUint(),
+				matching.NewMaxUint(),
+			),
+		)
+		require.Error(t, matching.ErrSellOCOStopPriceGreaterThanMarketPrice)
+	})
+
+	t.Run("sell OCO limit order price is less than market price", func(t *testing.T) {
+		// in place to test onError() calls
+		handler := mockmatching.NewMockHandler(ctrl)
+		setupMockHandler(t, handler)
+
+		engine := matching.NewEngine(handler, false)
+		engine.EnableMatching()
+
+		setupMarketState(t, engine, symbolID)
+		ob := engine.OrderBook(symbolID)
+
+		handler.EXPECT().OnError(ob, matching.ErrSellOCOLimitPriceLessThanMarketPrice)
+
+		err := engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			uint64(5),
+			matching.OrderSideBuy,
+			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
+			matching.NewUint(1).Mul64(matching.UintPrecision),
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+		require.True(t,
+			ob.GetMarketPrice().Equals(matching.NewUint(30).Mul64(matching.UintPrecision)),
+		)
+
+		err = engine.AddOrdersPair(
+			matching.NewStopLimitOrder(
+				symbolID,
+				uint64(6),
+				matching.OrderSideSell,
+				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
+				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
+				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
+				matching.NewMaxUint(),
+				matching.NewMaxUint(),
+			),
+			matching.NewLimitOrder(
+				symbolID,
+				uint64(7),
+				matching.OrderSideSell,
+				matching.NewUint(28).Mul64(matching.UintPrecision), // price 28
+				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
+				matching.NewMaxUint(),
+				matching.NewMaxUint(),
+			),
+		)
+		require.Error(t, matching.ErrSellOCOLimitPriceLessThanMarketPrice)
 	})
 
 	t.Run("buy, stop-limit is deleted manually, limit is deleted automatically", func(t *testing.T) {
@@ -883,4 +1033,25 @@ func setupMarketState(t *testing.T, engine *matching.Engine, symbolID uint32) {
 	}
 
 	require.Equal(t, 4, engine.Orders())
+}
+
+func setupMockHandler(t *testing.T, handler *mockmatching.MockHandler) {
+	handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
+	handler.EXPECT().OnAddOrder(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnUpdateOrder(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnAddPriceLevel(gomock.Any(), gomock.Any()).Do(
+		func(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {
+			t.Logf("add price level for %s\n", update.Price.ToFloatString())
+		}).AnyTimes()
+	handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnUpdateOrderBook(gomock.Any()).AnyTimes()
+	handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint) {
+			t.Logf("order %d (order baseq = %s) executed: price %s, quantity %s\n",
+				order.ID(), order.RestQuantity().ToFloatString(),
+				price.ToFloatString(), quantity.ToFloatString())
+		}).AnyTimes()
+	handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 }

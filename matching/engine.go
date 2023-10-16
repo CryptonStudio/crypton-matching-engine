@@ -1,7 +1,5 @@
 package matching
 
-import "errors"
-
 // Engine is used to manage the market with orders, price levels and order books.
 // Automatic orders matching can be enabled with EnableMatching() method or can be
 // manually performed with Match() method.
@@ -252,17 +250,17 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 		// Check market price
 		if stopLimitOrder.IsBuy() {
 			if stopLimitOrder.stopPrice.LessThan(ob.GetMarketPrice()) {
-				return errors.New("")
+				return ErrBuyOCOStopPriceLessThanMarketPrice
 			}
 			if limitOrder.price.GreaterThan(ob.GetMarketPrice()) {
-				return errors.New("")
+				return ErrBuyOCOLimitPriceGreaterThanMarketPrice
 			}
 		} else {
 			if stopLimitOrder.stopPrice.GreaterThan(ob.GetMarketPrice()) {
-				return errors.New("")
+				return ErrSellOCOStopPriceGreaterThanMarketPrice
 			}
 			if limitOrder.price.LessThan(ob.GetMarketPrice()) {
-				return errors.New("")
+				return ErrSellOCOLimitPriceLessThanMarketPrice
 			}
 		}
 

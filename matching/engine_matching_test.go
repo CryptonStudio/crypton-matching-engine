@@ -596,7 +596,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewMaxUint(),
 			),
 		)
-		require.Error(t, matching.ErrBuyOCOStopPriceLessThanMarketPrice)
+		require.ErrorIs(t, err, matching.ErrBuyOCOStopPriceLessThanMarketPrice)
 	})
 
 	t.Run("buy OCO limit order price is greater than market price", func(t *testing.T) {
@@ -647,7 +647,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewMaxUint(),
 			),
 		)
-		require.Error(t, matching.ErrBuyOCOLimitPriceGreaterThanMarketPrice)
+		require.ErrorIs(t, err, matching.ErrBuyOCOLimitPriceGreaterThanMarketPrice)
 	})
 
 	t.Run("sell OCO stop price is greater than market price", func(t *testing.T) {
@@ -698,7 +698,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewMaxUint(),
 			),
 		)
-		require.Error(t, matching.ErrSellOCOStopPriceGreaterThanMarketPrice)
+		require.ErrorIs(t, err, matching.ErrSellOCOStopPriceGreaterThanMarketPrice)
 	})
 
 	t.Run("sell OCO limit order price is less than market price", func(t *testing.T) {
@@ -749,7 +749,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewMaxUint(),
 			),
 		)
-		require.Error(t, matching.ErrSellOCOLimitPriceLessThanMarketPrice)
+		require.ErrorIs(t, err, matching.ErrSellOCOLimitPriceLessThanMarketPrice)
 	})
 
 	t.Run("buy, stop-limit is deleted manually, limit is deleted automatically", func(t *testing.T) {

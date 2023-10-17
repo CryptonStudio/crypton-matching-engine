@@ -185,6 +185,17 @@ func (e *Engine) DeleteOrderBook(id uint32) (orderBook *OrderBook, err error) {
 	return
 }
 
+// GetMarketPriceForOrderBook return market price of given symbolID (last executed trade).
+func (e *Engine) GetMarketPriceForOrderBook(symbolID uint32) (Uint, error) {
+
+	orderBook := e.OrderBook(symbolID)
+	if orderBook == nil {
+		return Uint{}, ErrOrderBookNotFound
+	}
+
+	return orderBook.GetMarketPrice(), nil
+}
+
 ////////////////////////////////////////////////////////////////
 // Orders management
 ////////////////////////////////////////////////////////////////

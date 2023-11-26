@@ -275,25 +275,33 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 			}
 		}
 
-		// Add stop-limit order first
-		err := e.addStopLimitOrder(ob, stopLimitOrder, false)
+		// Add limit order first (it has higher priority to be placed)
+		err := e.addLimitOrder(ob, limitOrder, false)
 		if err != nil {
 			return err
 		}
 
-		// Find stop-limit order in orderbook
-		stopLimitOrderFromOB := ob.Order(stopLimitOrder.id)
+		limitOrderFromOB := ob.Order(limitOrder.id)
 
-		// Check if stop-limit order has been executed or activated
-		if stopLimitOrderFromOB == nil || stopLimitOrderFromOB.Type() == OrderTypeLimit {
+		// Check if limit order has been executed
+		if limitOrderFromOB == nil || !limitOrderFromOB.executedQuantity.IsZero() {
 			// Imitation of order placing and cancellation
-			e.handler.OnAddOrder(ob, &limitOrder)
-			e.handler.OnDeleteOrder(ob, &limitOrder)
+			e.handler.OnAddOrder(ob, &stopLimitOrder)
+			e.handler.OnDeleteOrder(ob, &stopLimitOrder)
 		} else {
-			// Add limit order
-			err = e.addLimitOrder(ob, limitOrder, false)
+			// Add stop-limit order
+			err = e.addStopLimitOrder(ob, stopLimitOrder, false)
 			if err != nil {
 				return err
+			}
+
+			// Find stop-limit order in orderbook
+			stopLimitOrderFromOB := ob.Order(stopLimitOrder.id)
+
+			// Check if stop-limit order has been executed or activated
+			if stopLimitOrderFromOB == nil || stopLimitOrderFromOB.Type() == OrderTypeLimit {
+				// Cancel limit order
+				e.deleteOrder(ob, limitOrderFromOB, false)
 			}
 		}
 

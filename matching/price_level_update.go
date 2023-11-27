@@ -10,6 +10,17 @@ const (
 	PriceLevelTypeAsk
 )
 
+func (plt PriceLevelType) String() string {
+	switch plt {
+	case PriceLevelTypeBid:
+		return "bid"
+	case PriceLevelTypeAsk:
+		return "ask"
+	default:
+		return "unknown"
+	}
+}
+
 ////////////////////////////////////////////////////////////////
 
 // PriceLevelUpdateKind is an enumeration of possible price level update kinds (add, update, delete).
@@ -23,6 +34,19 @@ const (
 	// PriceLevelUpdateKindDelete represents delete price level update kind.
 	PriceLevelUpdateKindDelete
 )
+
+func (uk PriceLevelUpdateKind) String() string {
+	switch uk {
+	case PriceLevelUpdateKindAdd:
+		return "add"
+	case PriceLevelUpdateKindUpdate:
+		return "update"
+	case PriceLevelUpdateKindDelete:
+		return "delete"
+	default:
+		return "unknown"
+	}
+}
 
 ////////////////////////////////////////////////////////////////
 

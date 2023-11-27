@@ -9,3 +9,14 @@ const (
 	// OrderSideSell represents market side which includes only sell orders (asks).
 	OrderSideSell
 )
+
+func (os OrderSide) String() string {
+	switch os {
+	case OrderSideBuy:
+		return "buy"
+	case OrderSideSell:
+		return "sell"
+	default:
+		return "unknown"
+	}
+}

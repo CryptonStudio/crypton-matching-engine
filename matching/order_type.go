@@ -51,6 +51,25 @@ const (
 	OrderTypeTrailingStopLimit
 )
 
+func (ot OrderType) String() string {
+	switch ot {
+	case OrderTypeLimit:
+		return "limit"
+	case OrderTypeMarket:
+		return "market"
+	case OrderTypeStop:
+		return "stop"
+	case OrderTypeStopLimit:
+		return "stop-limit"
+	case OrderTypeTrailingStop:
+		return "trailing-stop"
+	case OrderTypeTrailingStopLimit:
+		return "trailing-stop-limit"
+	default:
+		return "unknown"
+	}
+}
+
 // OrderTimeInForce is an enumeration of possible order execution options.
 type OrderTimeInForce uint8
 
@@ -71,3 +90,18 @@ const (
 	// executed immediately remain active until they are executed or cancelled.
 	OrderTimeInForceAON
 )
+
+func (ot OrderTimeInForce) String() string {
+	switch ot {
+	case OrderTimeInForceGTC:
+		return "good-till-cancelled"
+	case OrderTimeInForceIOC:
+		return "immediate-or-cancel"
+	case OrderTimeInForceFOK:
+		return "fill-or-kill"
+	case OrderTimeInForceAON:
+		return "all-or-none"
+	default:
+		return "unknown"
+	}
+}

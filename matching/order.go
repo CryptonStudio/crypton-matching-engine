@@ -232,16 +232,13 @@ func (o *Order) RestQuantity() Uint {
 }
 
 // RestAvailableQuantity returns order remaining quantity which can be executed with specific price according to locked quantity.
-func (o *Order) RestAvailableQuantity(price Uint) Uint {
-	quote, _ := o.RestAvailableQuantities(price)
+func (o *Order) RestAvailableQuantity(price Uint, lotSizeStep Uint) Uint {
+	quote, _ := o.RestAvailableQuantities(price, lotSizeStep)
 	return quote
 }
 
 // RestAvailableQuantities returns order remaining base and quote quantity which can be executed with specific price according to locked quantity.
-func (o *Order) RestAvailableQuantities(price Uint) (Uint, Uint) {
-	var restQuoteQuantity Uint
-	var restQuantity Uint
-
+func (o *Order) RestAvailableQuantities(price Uint, lotSizeStep Uint) (restQuantity Uint, restQuoteQuantity Uint) {
 	if o.marketQuoteMode {
 		restQuoteQuantity = o.quoteQuantity.Sub(o.executedQuoteQuantity)
 		restQuantity, _ = restQuoteQuantity.Mul64(UintPrecision).QuoRem(price)
@@ -259,10 +256,14 @@ func (o *Order) RestAvailableQuantities(price Uint) (Uint, Uint) {
 	// cap rest quantity for sell order
 	if !o.IsBuy() && restQuantity.GreaterThan(o.available) {
 		restQuantity = o.available
-		restQuoteQuantity = restQuantity.Mul(price).Div64(UintPrecision)
 	}
 
-	return restQuantity, restQuoteQuantity
+	// cap rest quantity by lot size step and recalculate rest quote quantity
+	steps, _ := restQuantity.QuoRem(lotSizeStep)
+	restQuantity = steps.Mul(lotSizeStep)
+	restQuoteQuantity = restQuantity.Mul(price).Div64(UintPrecision)
+
+	return
 }
 
 // VisibleQuantity returns order remaining visible quantity.
@@ -306,9 +307,77 @@ func (o *Order) LinkedOrderID() uint64 {
 ////////////////////////////////////////////////////////////////
 
 // Validate returns error if the order fails to pass validation so can be used safely.
-func (o *Order) Validate() error {
+func (o *Order) Validate(ob *OrderBook) error {
 
-	// TODO: Implement validation very carefully!
+	// Validate order ID
+	if o.id == 0 {
+		return ErrInvalidOrderID
+	}
+
+	// Validate order type
+	switch o.orderType {
+	case OrderTypeLimit:
+	case OrderTypeMarket:
+	case OrderTypeStop:
+	case OrderTypeStopLimit:
+	case OrderTypeTrailingStop:
+	case OrderTypeTrailingStopLimit:
+	default:
+		return ErrInvalidOrderType
+	}
+
+	// Validate order side
+	switch o.side {
+	case OrderSideBuy:
+	case OrderSideSell:
+	default:
+		return ErrInvalidOrderSide
+	}
+
+	// Validate price (if necessary)
+	switch o.orderType {
+	case OrderTypeLimit, OrderTypeStopLimit, OrderTypeTrailingStopLimit:
+		if o.price.LessThan(ob.symbol.priceLimits.Min) {
+			return ErrInvalidOrderPrice
+		}
+		if o.price.GreaterThan(ob.symbol.priceLimits.Max) {
+			return ErrInvalidOrderPrice
+		}
+		_, rem := o.price.QuoRem(ob.symbol.priceLimits.Step)
+		if !rem.IsZero() {
+			return ErrInvalidOrderPrice
+		}
+	}
+
+	// Validate stop price (if necessary)
+	switch o.orderType {
+	case OrderTypeStop, OrderTypeStopLimit, OrderTypeTrailingStop, OrderTypeTrailingStopLimit:
+		if o.stopPrice.LessThan(ob.symbol.priceLimits.Min) {
+			return ErrInvalidOrderStopPrice
+		}
+		if o.stopPrice.GreaterThan(ob.symbol.priceLimits.Max) {
+			return ErrInvalidOrderStopPrice
+		}
+		_, rem := o.stopPrice.QuoRem(ob.symbol.priceLimits.Step)
+		if !rem.IsZero() {
+			return ErrInvalidOrderStopPrice
+		}
+	}
+
+	// Validate quantity (if necessary)
+	switch o.orderType {
+	case OrderTypeLimit, OrderTypeStopLimit, OrderTypeTrailingStopLimit:
+		if o.quantity.LessThan(ob.symbol.lotSizeLimits.Min) {
+			return ErrInvalidOrderQuantity
+		}
+		if o.quantity.GreaterThan(ob.symbol.lotSizeLimits.Max) {
+			return ErrInvalidOrderQuantity
+		}
+		_, rem := o.quantity.QuoRem(ob.symbol.lotSizeLimits.Step)
+		if !rem.IsZero() {
+			return ErrInvalidOrderQuantity
+		}
+	}
 
 	return nil
 }

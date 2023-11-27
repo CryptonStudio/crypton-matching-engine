@@ -119,10 +119,9 @@ func (ob *OrderBook) IsEmpty() bool {
 	return ob.Size() == 0
 }
 
-// Size returns total amount of price levels in the order book.
+// Size returns total amount of orders in the order book.
 func (ob *OrderBook) Size() int {
-	// TODO: Aggregate all orders count in the order book to avoid this calculation
-	return ob.bids.Size() + ob.asks.Size() + ob.buyStop.Size() + ob.sellStop.Size() + ob.trailingBuyStop.Size() + ob.trailingSellStop.Size()
+	return ob.orders.Len()
 }
 
 // Order returns order with given id.

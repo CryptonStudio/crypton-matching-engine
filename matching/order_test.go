@@ -98,7 +98,7 @@ func TestOrderRestAvailableQuantities(t *testing.T) {
 			quoteQuantity:   tc.restQuoteQuantity,
 		}
 
-		rest, restQuote := order.RestAvailableQuantities(tc.price)
+		rest, restQuote := order.RestAvailableQuantities(tc.price, NewUint(1))
 
 		require.True(t, tc.expectRest.Equals(rest), tc.name)
 		require.True(t, tc.expectRestQuote.Equals(restQuote), tc.name)

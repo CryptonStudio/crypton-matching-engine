@@ -1005,7 +1005,7 @@ func TestOCOOrders(t *testing.T) {
 
 // This function is helper to define base bids and asks (not recommended to modify)
 func setupMarketState(t *testing.T, engine *matching.Engine, symbolID uint32) {
-	_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+	_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 	require.NoError(t, err)
 
 	pricesAndSides := []struct {

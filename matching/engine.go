@@ -32,8 +32,7 @@ func NewEngine(handler Handler, multithread bool) *Engine {
 }
 
 // Start starts the matching engine.
-func (e *Engine) Start() {
-}
+func (e *Engine) Start() {}
 
 // Stop stops the matching engine.
 // It releases all internally used order books and cleans whole order book state.
@@ -88,7 +87,6 @@ func (e *Engine) Orders() int {
 	orders := 0
 	for i, c := 0, len(e.orderBooks); i < c; i++ {
 		if e.orderBooks[i] != nil {
-			// TODO: Size() is not orders but price levels!
 			orders += e.orderBooks[i].Size()
 		}
 	}
@@ -116,7 +114,7 @@ func (e *Engine) DisableMatching() {
 ////////////////////////////////////////////////////////////////
 
 // AddOrderBook creates new order book and adds it to the engine.
-func (e *Engine) AddOrderBook(symbol Symbol) (orderBook *OrderBook, err error) {
+func (e *Engine) AddOrderBook(symbol Symbol, marketPrice Uint) (orderBook *OrderBook, err error) {
 
 	// Ensure order books storage size
 	newSize := len(e.orderBooks)
@@ -143,6 +141,7 @@ func (e *Engine) AddOrderBook(symbol Symbol) (orderBook *OrderBook, err error) {
 
 	// Create order book
 	orderBook = NewOrderBook(allocator, symbol, defaultOrderBookTaskQueueSize)
+	orderBook.marketPrice = marketPrice
 	e.orderBooks[symbol.id] = orderBook
 	e.orderBooksCount++
 
@@ -203,15 +202,15 @@ func (e *Engine) GetMarketPriceForOrderBook(symbolID uint32) (Uint, error) {
 // AddOrder adds new order to the engine.
 func (e *Engine) AddOrder(order Order) error {
 
-	// Validate order parameters
-	if err := order.Validate(); err != nil {
-		return err
-	}
-
 	// Get the valid order book for the order
 	ob := e.OrderBook(order.symbolID)
 	if ob == nil {
 		return ErrOrderBookNotFound
+	}
+
+	// Validate order parameters
+	if err := order.Validate(ob); err != nil {
+		return err
 	}
 
 	task := func(ob *OrderBook) error {
@@ -238,23 +237,23 @@ func (e *Engine) AddOrder(order Order) error {
 // First order should be stop-limit order and second one should be limit order.
 func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 
+	// Get the valid order book for the order
+	ob := e.OrderBook(stopLimitOrder.symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
+	}
+
 	// Validate orders parameters
-	if err := stopLimitOrder.Validate(); err != nil {
+	if err := stopLimitOrder.Validate(ob); err != nil {
 		return err
 	}
-	if err := limitOrder.Validate(); err != nil {
+	if err := limitOrder.Validate(ob); err != nil {
 		return err
 	}
 
 	// Link OCO orders to each other
 	stopLimitOrder.linkedOrderID = limitOrder.id
 	limitOrder.linkedOrderID = stopLimitOrder.id
-
-	// Get the valid order book for the order
-	ob := e.OrderBook(stopLimitOrder.symbolID)
-	if ob == nil {
-		return ErrOrderBookNotFound
-	}
 
 	task := func(ob *OrderBook) error {
 
@@ -459,7 +458,7 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 		}
 
 		// Calculate the minimal possible order quantity to execute
-		orderQuantity := order.RestAvailableQuantity(order.price)
+		orderQuantity := order.RestAvailableQuantity(order.price, ob.symbol.lotSizeLimits.Step)
 		quantity = Min(quantity, orderQuantity)
 		quoteQuantity := quantity.Mul(order.price).Div64(UintPrecision)
 
@@ -550,7 +549,7 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 		}
 
 		// Calculate the minimal possible order quantity to execute
-		orderQuantity := order.RestAvailableQuantity(price)
+		orderQuantity := order.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step)
 		quantity = Min(quantity, orderQuantity)
 		quoteQuantity := quantity.Mul(price).Div64(UintPrecision)
 

@@ -64,17 +64,17 @@ func (e *Engine) match(ob *OrderBook) {
 				} else {
 					price = reducingOrder.price
 				}
-				quantity, quoteQuantity := executingOrder.RestAvailableQuantities(price)
+				quantity, quoteQuantity := executingOrder.RestAvailableQuantities(price, ob.symbol.lotSizeLimits.Step)
 
 				// Ensure both orders are not executed already
 				// TODO: Investigate the reason of occurring such cases!
-				if orderBid.Value.RestAvailableQuantity(price).IsZero() {
+				if orderBid.Value.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step).IsZero() {
 					order := orderBid.Value
 					orderBid = orderBid.Next()
 					e.deleteOrder(ob, order, true)
 					continue
 				}
-				if orderAsk.Value.RestAvailableQuantity(price).IsZero() {
+				if orderAsk.Value.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step).IsZero() {
 					order := orderAsk.Value
 					orderAsk = orderAsk.Next()
 					e.deleteOrder(ob, order, true)
@@ -139,7 +139,7 @@ func (e *Engine) match(ob *OrderBook) {
 				reducingOrder.executedQuoteQuantity = reducingOrder.executedQuoteQuantity.Add(quoteQuantity)
 
 				// Move to the next orders pair at the same price level
-				if reducingOrder.RestAvailableQuantity(price).Equals(quantity) {
+				if reducingOrder.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step).Equals(quantity) {
 					if !swapped {
 						orderAsk = orderAsk.Next()
 					} else {
@@ -288,7 +288,8 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 
 			// Get the execution price and quantity
 			price := executingOrder.price
-			executingQuantity, orderQuantity := executingOrder.RestAvailableQuantity(price), order.RestAvailableQuantity(price)
+			executingQuantity := executingOrder.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step)
+			orderQuantity := order.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step)
 			quantity := Min(executingQuantity, orderQuantity)
 			quoteQuantity := quantity.Mul(price).Div64(UintPrecision)
 
@@ -398,7 +399,7 @@ func (e *Engine) executeMatchingChain(
 			// Execute order
 			if order.IsAON() {
 				// Get the execution quantity
-				quantity, quoteQuantity = order.RestAvailableQuantities(price)
+				quantity, quoteQuantity = order.RestAvailableQuantities(price, ob.symbol.lotSizeLimits.Step)
 
 				// Call the corresponding handler
 				// TODO: Call OnExecuteTrade handler!
@@ -417,7 +418,7 @@ func (e *Engine) executeMatchingChain(
 				e.deleteOrder(ob, order, true)
 			} else {
 				// Get the execution quantity
-				quantity = Min(order.RestAvailableQuantity(price), volume)
+				quantity = Min(order.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step), volume)
 				quoteQuantity := quantity.Mul(price).Div64(UintPrecision)
 
 				// Call the corresponding handler
@@ -477,7 +478,7 @@ func (e *Engine) calculateMatchingChain(
 			orderPtrNext := orderPtr.Next()
 			order := orderPtr.Value
 			need := volume.Sub(available)
-			quantity := order.RestAvailableQuantity(order.price)
+			quantity := order.RestAvailableQuantity(order.price, ob.symbol.lotSizeLimits.Step)
 			if !order.IsAON() {
 				quantity = Min(quantity, need)
 			}

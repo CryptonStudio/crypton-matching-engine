@@ -30,7 +30,7 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
@@ -63,7 +63,7 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
@@ -109,7 +109,7 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
@@ -153,7 +153,7 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
@@ -187,7 +187,7 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
@@ -230,7 +230,7 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
@@ -273,7 +273,7 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
@@ -316,7 +316,7 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
@@ -356,7 +356,7 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(

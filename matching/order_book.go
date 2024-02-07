@@ -106,13 +106,30 @@ func (ob *OrderBook) Clean() {
 }
 
 ////////////////////////////////////////////////////////////////
-// Order book getters
+// Order book symbol
 ////////////////////////////////////////////////////////////////
 
 // Symbol returns order book symbol.
 func (ob *OrderBook) Symbol() Symbol {
 	return ob.symbol
 }
+
+func (ob *OrderBook) UpdateSymbol(sym Symbol) error {
+	if ob.symbol.id != sym.id {
+		return ErrInvalidSymbol
+	}
+
+	if !sym.Valid() {
+		return ErrInvalidSymbol
+	}
+
+	ob.symbol = sym
+	return nil
+}
+
+////////////////////////////////////////////////////////////////
+// Order book getters
+////////////////////////////////////////////////////////////////
 
 // IsEmpty returns true of the order book has no any orders.
 func (ob *OrderBook) IsEmpty() bool {

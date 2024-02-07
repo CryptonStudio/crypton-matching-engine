@@ -115,6 +115,10 @@ func (e *Engine) DisableMatching() {
 
 // AddOrderBook creates new order book and adds it to the engine.
 func (e *Engine) AddOrderBook(symbol Symbol, marketPrice Uint) (orderBook *OrderBook, err error) {
+	if !symbol.Valid() {
+		err = ErrInvalidSymbol
+		return
+	}
 
 	// Ensure order books storage size
 	newSize := len(e.orderBooks)

@@ -12,6 +12,7 @@ var (
 	ErrOrderNotFound            = errors.New("order is not found")
 	ErrPriceLevelDuplicate      = errors.New("price level is duplicated")
 	ErrPriceLevelNotFound       = errors.New("price level is not found")
+	ErrInvalidSymbol            = errors.New("invalid symbol")
 	ErrInvalidOrderID           = errors.New("invalid order id")
 	ErrInvalidOrderSide         = errors.New("invalid order side")
 	ErrInvalidOrderType         = errors.New("invalid order type")

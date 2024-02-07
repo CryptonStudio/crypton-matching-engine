@@ -62,3 +62,31 @@ func (s Symbol) PriceLimits() Limits {
 func (s Symbol) LotSizeLimits() Limits {
 	return s.lotSizeLimits
 }
+
+func (s Symbol) Valid() bool {
+	if s.priceLimits.Min.GreaterThanOrEqualTo(s.priceLimits.Max) {
+		return false
+	}
+
+	if s.priceLimits.Step.GreaterThanOrEqualTo(s.priceLimits.Max) {
+		return false
+	}
+
+	if s.lotSizeLimits.Min.GreaterThanOrEqualTo(s.lotSizeLimits.Max) {
+		return false
+	}
+
+	if s.lotSizeLimits.Step.GreaterThanOrEqualTo(s.lotSizeLimits.Max) {
+		return false
+	}
+
+	if s.priceLimits.Step.IsZero() {
+		return false
+	}
+
+	if s.lotSizeLimits.Step.IsZero() {
+		return false
+	}
+
+	return true
+}

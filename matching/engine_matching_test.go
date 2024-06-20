@@ -2343,6 +2343,63 @@ func TestTimeInForce(t *testing.T) {
 		require.Nil(t, ob.Order(6)) // check: aon order is executed
 	})
 
+	t.Run("AON - prepared OB for partial match, then add amount (AON is bid)", func(t *testing.T) {
+		engine := matching.NewEngine(setupHandler(t), false)
+		engine.EnableMatching()
+
+		ob, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true, Mark: true, Index: true})
+		require.NoError(t, err)
+
+		fullQty := matching.NewUint(10).Mul64(matching.UintPrecision)
+		partQty := matching.NewUint(5).Mul64(matching.UintPrecision)
+		remQty := fullQty.Sub(partQty)
+
+		// prepare OB with GTC
+		err = engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			uint64(5),
+			matching.OrderSideSell,
+			matching.OrderTimeInForceGTC,
+			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
+			partQty,
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+		require.Equal(t, matching.OrderTypeLimit, ob.Order(5).Type()) // check: order is placed
+
+		// place in prepared OB
+		err = engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			uint64(6),
+			matching.OrderSideBuy,
+			matching.OrderTimeInForceAON,
+			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
+			fullQty,
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+		require.True(t, ob.Order(5).ExecutedQuantity().IsZero()) // check: gtc order is not executed
+		require.True(t, ob.Order(6).ExecutedQuantity().IsZero()) // check: aon order is not executed
+
+		// place limit with remaining volume
+		err = engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			uint64(7),
+			matching.OrderSideSell,
+			matching.OrderTimeInForceGTC,
+			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
+			remQty,
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+		require.Nil(t, ob.Order(5)) // check: first gtc order is executed
+		require.Nil(t, ob.Order(7)) // check: second gtc order is executed
+		require.Nil(t, ob.Order(6)) // check: aon order is executed
+	})
+
 	t.Run("AON - prepared OB for partial match, then cancel manually", func(t *testing.T) {
 		engine := matching.NewEngine(setupHandler(t), false)
 		engine.EnableMatching()
@@ -2417,6 +2474,46 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(6),
 			matching.OrderSideSell,
+			matching.OrderTimeInForceAON,
+			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
+			partQty,
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+		require.True(t, ob.Order(5).ExecutedQuantity().Equals(partQty)) // check: gtc order is executed partly
+		require.Nil(t, ob.Order(6))                                     // check: aon order is executed
+	})
+
+	t.Run("AON - prepared OB for full match (AON is bid)", func(t *testing.T) {
+		engine := matching.NewEngine(setupHandler(t), false)
+		engine.EnableMatching()
+
+		ob, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true, Mark: true, Index: true})
+		require.NoError(t, err)
+
+		fullQty := matching.NewUint(10).Mul64(matching.UintPrecision)
+		partQty := matching.NewUint(5).Mul64(matching.UintPrecision)
+
+		// prepare OB with GTC
+		err = engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			uint64(5),
+			matching.OrderSideSell,
+			matching.OrderTimeInForceGTC,
+			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
+			fullQty,
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+		require.Equal(t, matching.OrderTypeLimit, ob.Order(5).Type()) // check: order is placed
+
+		// place in prepared OB
+		err = engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			uint64(6),
+			matching.OrderSideBuy,
 			matching.OrderTimeInForceAON,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			partQty,

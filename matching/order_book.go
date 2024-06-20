@@ -30,7 +30,7 @@ type OrderBook struct {
 	trailingSellStop avl.Tree[Uint, *PriceLevelL3]
 
 	// Allowed stop pride modes
-	spModesConfig StopPriceModeConfig
+	spModes []StopPriceMode
 
 	// Market last and trailing prices
 	marketPrice Uint
@@ -85,7 +85,7 @@ func NewOrderBook(allocator *Allocator, symbol Symbol, spModesConfig StopPriceMo
 		symbol:           symbol,
 		bids:             newPriceLevelReversedTree(allocator),
 		asks:             newPriceLevelTree(allocator),
-		spModesConfig:    spModesConfig,
+		spModes:          spModesConfig.Modes(),
 		buyStop:          newPriceLevelReversedTree(allocator),
 		sellStop:         newPriceLevelTree(allocator),
 		trailingBuyStop:  newPriceLevelReversedTree(allocator),
@@ -241,11 +241,11 @@ func (ob *OrderBook) GetTrailingSellStop(price Uint) *avl.Node[Uint, *PriceLevel
 func (ob *OrderBook) GetStopPrice(m StopPriceMode) Uint {
 	switch m {
 	case StopPriceModeMarket:
-		return ob.marketPrice
+		return ob.GetMarketPrice()
 	case StopPriceModeMark:
-		return ob.markPrice
+		return ob.GetMarkPrice()
 	case StopPriceModeIndex:
-		return ob.indexPrice
+		return ob.GetIndexPrice()
 	}
 
 	return NewZeroUint()

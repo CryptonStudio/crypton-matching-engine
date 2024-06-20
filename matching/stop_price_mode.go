@@ -1,5 +1,7 @@
 package matching
 
+const stopPriceModesCount = 3
+
 type StopPriceModeConfig struct {
 	Market bool
 	Mark   bool
@@ -7,7 +9,7 @@ type StopPriceModeConfig struct {
 }
 
 func (c StopPriceModeConfig) Modes() []StopPriceMode {
-	modes := []StopPriceMode{}
+	modes := make([]StopPriceMode, 0, stopPriceModesCount)
 
 	if c.Market {
 		modes = append(modes, StopPriceModeMarket)

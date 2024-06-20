@@ -12,7 +12,7 @@ func (e *Engine) activateAllStopOrders(ob *OrderBook) (activated bool) {
 	for stop := false; !stop; {
 		stop = true
 
-		for _, mode := range ob.spModesConfig.Modes() {
+		for _, mode := range ob.spModes {
 			// Try to activate buy stop orders
 			if e.activateStopOrders(ob, OrderSideBuy, ob.TopBuyStop(), mode) ||
 				e.activateStopOrders(ob, OrderSideBuy, ob.TopTrailingBuyStop(), mode) {

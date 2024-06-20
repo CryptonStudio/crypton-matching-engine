@@ -144,7 +144,7 @@ func (e *Engine) match(ob *OrderBook) {
 			}
 
 			// Activate stop orders only if the current price level changed
-			for _, mode := range ob.spModesConfig.Modes() {
+			for _, mode := range ob.spModes {
 				e.activateStopOrders(ob, OrderSideBuy, ob.TopBid(), mode)
 				e.activateStopOrders(ob, OrderSideSell, ob.TopAsk(), mode)
 			}

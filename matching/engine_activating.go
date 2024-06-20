@@ -9,35 +9,37 @@ import (
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) activateAllStopOrders(ob *OrderBook) (activated bool) {
-
 	for stop := false; !stop; {
 		stop = true
 
-		// Try to activate buy stop orders
-		if e.activateStopOrders(ob, OrderSideBuy, ob.TopBuyStop(), ob.GetMarketPrice()) ||
-			e.activateStopOrders(ob, OrderSideBuy, ob.TopTrailingBuyStop(), ob.GetMarketPrice()) {
-			activated = true
-			stop = false
+		for _, mode := range ob.spModesConfig.Modes() {
+			// Try to activate buy stop orders
+			if e.activateStopOrders(ob, OrderSideBuy, ob.TopBuyStop(), mode) ||
+				e.activateStopOrders(ob, OrderSideBuy, ob.TopTrailingBuyStop(), mode) {
+				activated = true
+				stop = false
+			}
+
+			// Recalculate trailing buy stop orders
+			e.recalculateTrailingStopPrice(ob, OrderSideSell, ob.TopAsk())
+
+			// Try to activate sell stop orders
+			if e.activateStopOrders(ob, OrderSideSell, ob.TopSellStop(), mode) ||
+				e.activateStopOrders(ob, OrderSideSell, ob.TopTrailingSellStop(), mode) {
+				activated = true
+				stop = false
+			}
+
+			// Recalculate trailing sell stop orders
+			e.recalculateTrailingStopPrice(ob, OrderSideBuy, ob.TopBid())
 		}
-
-		// Recalculate trailing buy stop orders
-		e.recalculateTrailingStopPrice(ob, OrderSideSell, ob.TopAsk())
-
-		// Try to activate sell stop orders
-		if e.activateStopOrders(ob, OrderSideSell, ob.TopSellStop(), ob.GetMarketPrice()) ||
-			e.activateStopOrders(ob, OrderSideSell, ob.TopTrailingSellStop(), ob.GetMarketPrice()) {
-			activated = true
-			stop = false
-		}
-
-		// Recalculate trailing sell stop orders
-		e.recalculateTrailingStopPrice(ob, OrderSideBuy, ob.TopBid())
 	}
 
 	return
 }
 
-func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Node[Uint, *PriceLevelL3], marketPrice Uint) (activated bool) {
+func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Node[Uint, *PriceLevelL3], stopPriceMode StopPriceMode) (activated bool) {
+	activationPrice := ob.GetStopPrice(stopPriceMode)
 
 	// Return if given price level node is nil
 	if node == nil {
@@ -47,21 +49,25 @@ func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Nod
 
 	// Activate all stop orders
 	for orderPtr := priceLevel.queue.Front(); orderPtr != nil; orderPtr = orderPtr.Next() {
+		if orderPtr.Value.stopPriceMode != stopPriceMode {
+			continue
+		}
+
 		// Check the arbitrage bid/ask prices
 		var arbitrage bool
 
 		stopPrice := orderPtr.Value.stopPrice
 		if orderPtr.Value.takeProfit {
 			if side == OrderSideBuy {
-				arbitrage = stopPrice.GreaterThanOrEqualTo(marketPrice)
+				arbitrage = stopPrice.GreaterThanOrEqualTo(activationPrice)
 			} else {
-				arbitrage = stopPrice.LessThanOrEqualTo(marketPrice)
+				arbitrage = stopPrice.LessThanOrEqualTo(activationPrice)
 			}
 		} else {
 			if side == OrderSideBuy {
-				arbitrage = stopPrice.LessThanOrEqualTo(marketPrice)
+				arbitrage = stopPrice.LessThanOrEqualTo(activationPrice)
 			} else {
-				arbitrage = stopPrice.GreaterThanOrEqualTo(marketPrice)
+				arbitrage = stopPrice.GreaterThanOrEqualTo(activationPrice)
 			}
 		}
 
@@ -83,7 +89,6 @@ func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Nod
 }
 
 func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) bool {
-
 	// Delete the stop order from the order book
 	_, err := ob.deleteOrder(ob.treeForOrder(order), order)
 	if err != nil {
@@ -119,7 +124,6 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) bool {
 }
 
 func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) bool {
-
 	// Check and delete linked orders (OCO)
 	e.deleteLinkedOrder(ob, order, false)
 
@@ -274,7 +278,6 @@ func (e *Engine) recalculateTrailingStopPrice(ob *OrderBook, side OrderSide, nod
 }
 
 func (ob *OrderBook) calculateTrailingStopPrice(order *Order) Uint {
-
 	// Get the current market price
 	var marketPrice Uint
 	if order.IsBuy() {

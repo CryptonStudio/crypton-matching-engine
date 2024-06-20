@@ -24,7 +24,7 @@ func (h *ITCH) OnStockDirectoryMessage(msg itch.StockDirectoryMessage) error {
 	h.messages[msg.Type]++
 	h.handled++
 	symbol := matching.NewSymbol(uint32(msg.StockLocate), string(msg.Stock[:]))
-	_, err := h.engine.AddOrderBook(symbol, matching.NewUint(0))
+	_, err := h.engine.AddOrderBook(symbol, matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 	if err != nil {
 		h.errors++
 		// fmt.Printf("ERROR: Unable to add order book %s (%d)\n", string(msg.Stock[:]), msg.StockLocate)
@@ -76,6 +76,7 @@ func (h *ITCH) OnAddOrderMessage(msg itch.AddOrderMessage) error {
 		uint32(msg.StockLocate),
 		msg.OrderReferenceNumber,
 		side,
+		matching.OrderTimeInForceGTC,
 		matching.NewUint(uint64(msg.Price)),
 		matching.NewUint(uint64(msg.Shares)),
 		matching.NewUint(uint64(msg.Shares)),
@@ -103,6 +104,7 @@ func (h *ITCH) OnAddOrderMPIDMessage(msg itch.AddOrderMPIDMessage) error {
 		uint32(msg.StockLocate),
 		msg.OrderReferenceNumber,
 		side,
+		matching.OrderTimeInForceGTC,
 		matching.NewUint(uint64(msg.Price)),
 		matching.NewUint(uint64(msg.Shares)),
 		matching.NewUint(uint64(msg.Shares)),

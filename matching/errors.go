@@ -26,4 +26,11 @@ var (
 	ErrBuyOCOLimitPriceGreaterThanMarketPrice = errors.New("limit order price must be less than market price (buy OCO order)")
 	ErrSellOCOStopPriceGreaterThanMarketPrice = errors.New("stop price must be less than market price (sell OCO order)")
 	ErrSellOCOLimitPriceLessThanMarketPrice   = errors.New("limit order price must be greater than market price (sell OCO order)")
+
+	// TPSL
+	ErrBuySLStopPriceLessThanEnginePrice     = errors.New("stop price must be greater than engine price (buy stop-loss order)")
+	ErrBuyTPStopPriceGreaterThanEnginePrice  = errors.New("stop price must be less than engine price (buy take-profit order)")
+	ErrSellSLStopPriceGreaterThanEnginePrice = errors.New("stop price must be less than engine price (sell stop-loss order)")
+	ErrSellTPStopPriceLessThanEnginePrice    = errors.New("stop price must be greater than engine price (sell take-profit order)")
+	ErrTPSLDifferentStopPriceMode            = errors.New("both orders must have the same stop price mode (tpsl)")
 )

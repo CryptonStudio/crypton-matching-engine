@@ -8,7 +8,7 @@ import (
 	"github.com/cryptonstudio/crypton-matching-engine/types/avl"
 )
 
-// Order book is used to keep buy and sell orders in a price level order.
+// Order book is used to store buy and sell orders in a price level order.
 // NOTE: Not thread-safe.
 type OrderBook struct {
 	// Allocator used by the order book
@@ -29,8 +29,20 @@ type OrderBook struct {
 	trailingBuyStop  avl.Tree[Uint, *PriceLevelL3]
 	trailingSellStop avl.Tree[Uint, *PriceLevelL3]
 
+	// Allowed stop pride modes
+	spModesConfig StopPriceModeConfig
+
 	// Market last and trailing prices
-	marketPrice      Uint
+	marketPrice Uint
+
+	// Mark price
+	markPrice      Uint
+	markPriceMutex sync.RWMutex
+
+	// Index price
+	indexPrice      Uint
+	indexPriceMutex sync.RWMutex
+
 	lastBidPrice     Uint
 	lastAskPrice     Uint
 	matchingBidPrice Uint
@@ -49,12 +61,12 @@ type OrderBook struct {
 	chanTasks chan func(*OrderBook) error
 
 	// Synchronization stuff
-	chanForcedStop chan any // for forced stop
+	chanForcedStop chan struct{} // for forced stop
 	wg             sync.WaitGroup
 }
 
 // NewOrderBook creates and returns new OrderBook instance.
-func NewOrderBook(allocator *Allocator, symbol Symbol, taskQueueSize int) *OrderBook {
+func NewOrderBook(allocator *Allocator, symbol Symbol, spModesConfig StopPriceModeConfig, taskQueueSize int) *OrderBook {
 	newPriceLevelTree := func(allocator *Allocator) avl.Tree[Uint, *PriceLevelL3] {
 		return avl.NewTreePooled[Uint, *PriceLevelL3](
 			func(a, b Uint) int { return a.Cmp(b) },
@@ -67,11 +79,13 @@ func NewOrderBook(allocator *Allocator, symbol Symbol, taskQueueSize int) *Order
 			&allocator.priceLevelNodes,
 		)
 	}
+
 	return &OrderBook{
 		allocator:        allocator,
 		symbol:           symbol,
 		bids:             newPriceLevelReversedTree(allocator),
 		asks:             newPriceLevelTree(allocator),
+		spModesConfig:    spModesConfig,
 		buyStop:          newPriceLevelReversedTree(allocator),
 		sellStop:         newPriceLevelTree(allocator),
 		trailingBuyStop:  newPriceLevelReversedTree(allocator),
@@ -85,7 +99,7 @@ func NewOrderBook(allocator *Allocator, symbol Symbol, taskQueueSize int) *Order
 		trailingAskPrice: NewMaxUint(),
 		orders:           hashmap.New[uint64, *Order](defaultReservedOrderSlots),
 		chanTasks:        make(chan func(*OrderBook) error, taskQueueSize),
-		chanForcedStop:   make(chan any),
+		chanForcedStop:   make(chan struct{}),
 		wg:               sync.WaitGroup{},
 	}
 }
@@ -220,29 +234,58 @@ func (ob *OrderBook) GetTrailingSellStop(price Uint) *avl.Node[Uint, *PriceLevel
 }
 
 ////////////////////////////////////////////////////////////////
-// Market prices getters
+// Market, Mark and Index methods
+// Stop price is one of follows depending on stopPriceMode
 ////////////////////////////////////////////////////////////////
+
+func (ob *OrderBook) GetStopPrice(m StopPriceMode) Uint {
+	switch m {
+	case StopPriceModeMarket:
+		return ob.marketPrice
+	case StopPriceModeMark:
+		return ob.markPrice
+	case StopPriceModeIndex:
+		return ob.indexPrice
+	}
+
+	return NewZeroUint()
+}
 
 func (ob *OrderBook) GetMarketPrice() Uint {
 	return ob.marketPrice
 }
 
-func (ob *OrderBook) GetMarketPriceBid() Uint {
-	matchingPrice, topPrice := ob.matchingBidPrice, NewZeroUint()
-	if top := ob.TopBid(); top != nil {
-		topPrice = top.Value().Price()
-	}
-	return Max(matchingPrice, topPrice)
+func (ob *OrderBook) GetMarkPrice() Uint {
+	ob.markPriceMutex.RLock()
+	defer ob.markPriceMutex.RUnlock()
+
+	return ob.markPrice
 }
 
-func (ob *OrderBook) GetMarketPriceAsk() Uint {
-	matchingPrice, topPrice := ob.matchingAskPrice, NewMaxUint()
-	if top := ob.TopAsk(); top != nil {
-		topPrice = top.Value().Price()
-	}
-	return Min(matchingPrice, topPrice)
+// setMarkPrice sets the mark price without new match iteration of the engine.
+func (ob *OrderBook) setMarkPrice(price Uint) {
+	ob.markPriceMutex.Lock()
+	defer ob.markPriceMutex.Unlock()
+
+	ob.markPrice = price
 }
 
+func (ob *OrderBook) GetIndexPrice() Uint {
+	ob.indexPriceMutex.RLock()
+	defer ob.indexPriceMutex.RUnlock()
+
+	return ob.indexPrice
+}
+
+// setIndexPrice sets the index price without new match iteration of the engine.
+func (ob *OrderBook) setIndexPrice(price Uint) {
+	ob.indexPriceMutex.Lock()
+	defer ob.indexPriceMutex.Unlock()
+
+	ob.indexPrice = price
+}
+
+// TODO: check later trailing prices
 func (ob *OrderBook) GetMarketTrailingStopPriceBid() Uint {
 	lastPrice, topPrice := ob.lastBidPrice, NewZeroUint()
 	if top := ob.TopBid(); top != nil {
@@ -445,6 +488,10 @@ func (ob *OrderBook) deletePriceLevel(tree *avl.Tree[Uint, *PriceLevelL3], price
 // //////////////////////////////////////////////////////////////
 
 func (ob *OrderBook) updateMarketPrice(price Uint) {
+	ob.marketPrice = price
+}
+
+func (ob *OrderBook) updateMarkPrice(price Uint) {
 	ob.marketPrice = price
 }
 

@@ -30,13 +30,14 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),
@@ -63,13 +64,14 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),
@@ -81,6 +83,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID+1,
 			matching.OrderSideSell,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),
@@ -109,13 +112,14 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),
@@ -127,6 +131,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID+1,
 			matching.OrderSideSell,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(200),
 			matching.NewZeroUint(),
@@ -153,13 +158,14 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),
@@ -187,13 +193,14 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),
@@ -230,13 +237,14 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),
@@ -273,13 +281,14 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),
@@ -316,13 +325,14 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),
@@ -356,13 +366,14 @@ func TestBasic(t *testing.T) {
 
 		engine := matching.NewEngine(handler, false)
 
-		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0))
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 		require.NoError(t, err)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderTimeInForceGTC,
 			matching.NewUint(10),
 			matching.NewUint(100),
 			matching.NewZeroUint(),

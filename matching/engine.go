@@ -114,7 +114,7 @@ func (e *Engine) DisableMatching() {
 ////////////////////////////////////////////////////////////////
 
 // AddOrderBook creates new order book and adds it to the engine.
-func (e *Engine) AddOrderBook(symbol Symbol, marketPrice Uint) (orderBook *OrderBook, err error) {
+func (e *Engine) AddOrderBook(symbol Symbol, marketPrice Uint, spModesConfig StopPriceModeConfig) (orderBook *OrderBook, err error) {
 	if !symbol.Valid() {
 		err = ErrInvalidSymbol
 		return
@@ -144,7 +144,7 @@ func (e *Engine) AddOrderBook(symbol Symbol, marketPrice Uint) (orderBook *Order
 	allocator := e.allocator
 
 	// Create order book
-	orderBook = NewOrderBook(allocator, symbol, defaultOrderBookTaskQueueSize)
+	orderBook = NewOrderBook(allocator, symbol, spModesConfig, defaultOrderBookTaskQueueSize)
 	orderBook.marketPrice = marketPrice
 	e.orderBooks[symbol.id] = orderBook
 	e.orderBooksCount++
@@ -197,6 +197,38 @@ func (e *Engine) GetMarketPriceForOrderBook(symbolID uint32) (Uint, error) {
 	}
 
 	return orderBook.GetMarketPrice(), nil
+}
+
+// SetMarkPrice sets the mark price for order book with ability to provoke matching iteration.
+func (e *Engine) SetMarkPriceForOrderBook(symbolID uint32, price Uint, iterate bool) error {
+	orderBook := e.OrderBook(symbolID)
+	if orderBook == nil {
+		return ErrInvalidOrderID
+	}
+
+	orderBook.setMarkPrice(price)
+
+	if iterate {
+		e.match(orderBook)
+	}
+
+	return nil
+}
+
+// SetIndexPriceForOrderBook sets the index price for order book with ability to provoke matching iteration.
+func (e *Engine) SetIndexPriceForOrderBook(symbolID uint32, price Uint, iterate bool) error {
+	orderBook := e.OrderBook(symbolID)
+	if orderBook == nil {
+		return ErrInvalidOrderID
+	}
+
+	orderBook.setIndexPrice(price)
+
+	if iterate {
+		e.match(orderBook)
+	}
+
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////
@@ -287,7 +319,7 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 		limitOrderFromOB := ob.Order(limitOrder.id)
 
 		// Check if limit order has been executed
-		if limitOrderFromOB == nil || !limitOrderFromOB.executedQuantity.IsZero() {
+		if limitOrderFromOB == nil || limitOrderFromOB.PartiallyExecuted() {
 			// Imitation of order placing and cancellation
 			e.handler.OnAddOrder(ob, &stopLimitOrder)
 			e.handler.OnDeleteOrder(ob, &stopLimitOrder)
@@ -302,9 +334,90 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 			stopLimitOrderFromOB := ob.Order(stopLimitOrder.id)
 
 			// Check if stop-limit order has been executed or activated
-			if stopLimitOrderFromOB == nil || stopLimitOrderFromOB.Type() == OrderTypeLimit {
+			if stopLimitOrderFromOB == nil || stopLimitOrderFromOB.Activated() {
 				// Cancel limit order
 				e.deleteOrder(ob, limitOrderFromOB, false)
+			}
+		}
+
+		return nil
+	}
+
+	return e.performOrderBookTask(ob, task)
+}
+
+// AddTPSL adds new orders pair take-profit and stop-limit (OCO orders) to the engine.
+// The first order should be take-profit order and the second order should be stop-limit.
+func (e *Engine) AddTPSL(TP Order, SL Order) error {
+	// Get the valid order book for the order
+	ob := e.OrderBook(TP.symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
+	}
+
+	// Validate orders parameters
+	if err := TP.Validate(ob); err != nil {
+		return err
+	}
+	if err := SL.Validate(ob); err != nil {
+		return err
+	}
+
+	// Link OCO orders to each other
+	TP.linkedOrderID = SL.id
+	SL.linkedOrderID = TP.id
+
+	task := func(ob *OrderBook) error {
+		// Check stop price mode
+		if TP.StopPriceMode() != SL.StopPriceMode() {
+			return ErrTPSLDifferentStopPriceMode
+		}
+
+		engineStopPrice := ob.GetStopPrice(TP.StopPriceMode())
+
+		// Check engine price
+		if TP.IsBuy() {
+			if SL.stopPrice.LessThan(engineStopPrice) {
+				return ErrBuySLStopPriceLessThanEnginePrice
+			}
+			if TP.stopPrice.GreaterThan(engineStopPrice) {
+				return ErrBuyTPStopPriceGreaterThanEnginePrice
+			}
+		} else {
+			if SL.stopPrice.GreaterThan(engineStopPrice) {
+				return ErrSellSLStopPriceGreaterThanEnginePrice
+			}
+			if TP.stopPrice.LessThan(engineStopPrice) {
+				return ErrSellTPStopPriceLessThanEnginePrice
+			}
+		}
+
+		err := e.addStopLimitOrder(ob, TP, false)
+		if err != nil {
+			return err
+		}
+
+		tpFromOB := ob.Order(TP.id)
+
+		// Check if tp order has been executed or activated
+		if tpFromOB == nil || tpFromOB.Activated() {
+			// Imitation of order placing and cancellation of sl linked order
+			e.handler.OnAddOrder(ob, &SL)
+			e.handler.OnDeleteOrder(ob, &SL)
+		} else {
+			// Add sl order
+			err = e.addStopLimitOrder(ob, SL, false)
+			if err != nil {
+				return err
+			}
+
+			// Find sl order in orderbook
+			slFromOB := ob.Order(SL.id)
+
+			// Check if sl order has been executed or activated
+			if slFromOB == nil || slFromOB.Activated() {
+				// Cancel tp linked order
+				e.deleteOrder(ob, tpFromOB, false)
 			}
 		}
 

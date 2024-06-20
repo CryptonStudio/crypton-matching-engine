@@ -31,7 +31,7 @@ func (e *Engine) match(ob *OrderBook) {
 				// Special case for 'All-Or-None' orders
 				if orderBid.Value.IsAON() || orderAsk.Value.IsAON() {
 					// Calculate the matching chain
-					chain := e.calculateMatchingChainCross(ob, topBid, topAsk)
+					chain := e.calculateMatchingChainCross(topBid, topAsk)
 					if chain.IsZero() {
 						// Matching is not available
 						return
@@ -40,12 +40,12 @@ func (e *Engine) match(ob *OrderBook) {
 					// Execute orders in the matching chain
 					if orderBid.Value.IsAON() {
 						price := orderBid.Value.price
-						e.executeMatchingChain(ob, &ob.bids, topBid, price, chain)
-						e.executeMatchingChain(ob, &ob.asks, topAsk, price, chain)
+						e.executeMatchingChain(ob, topBid, price, chain)
+						e.executeMatchingChain(ob, topAsk, price, chain)
 					} else {
 						price := orderAsk.Value.price
-						e.executeMatchingChain(ob, &ob.asks, topAsk, price, chain)
-						e.executeMatchingChain(ob, &ob.bids, topBid, price, chain)
+						e.executeMatchingChain(ob, topAsk, price, chain)
+						e.executeMatchingChain(ob, topBid, price, chain)
 					}
 
 					break
@@ -98,10 +98,6 @@ func (e *Engine) match(ob *OrderBook) {
 				// Update common market price
 				ob.updateMarketPrice(price)
 
-				// Update the corresponding market price (think if needed)
-				// ob.updateLastPrice(executingOrder.side, price)
-				// ob.updateMatchingPrice(executingOrder.side, price)
-
 				// Decrease the order available quantity
 				if executingOrder.IsBuy() {
 					executingOrder.available = executingOrder.available.Sub(quoteQuantity)
@@ -122,10 +118,6 @@ func (e *Engine) match(ob *OrderBook) {
 
 				// Delete the executing order from the order book
 				e.deleteOrder(ob, executingOrder, true)
-
-				// Update the corresponding market price (think if needed)
-				// ob.updateLastPrice(reducingOrder.side, price)
-				// ob.updateMatchingPrice(reducingOrder.side, price)
 
 				// Decrease the order available quantity
 				if reducingOrder.IsBuy() {
@@ -152,8 +144,10 @@ func (e *Engine) match(ob *OrderBook) {
 			}
 
 			// Activate stop orders only if the current price level changed
-			e.activateStopOrders(ob, OrderSideBuy, ob.TopBid(), ob.GetMarketPrice())
-			e.activateStopOrders(ob, OrderSideSell, ob.TopAsk(), ob.GetMarketPrice())
+			for _, mode := range ob.spModesConfig.Modes() {
+				e.activateStopOrders(ob, OrderSideBuy, ob.TopBid(), mode)
+				e.activateStopOrders(ob, OrderSideSell, ob.TopAsk(), mode)
+			}
 		}
 
 		// Activate stop orders until there is something to activate
@@ -219,13 +213,10 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 	// Start the matching from the top of the book
 	for {
 		// Determine the best bid/ask price level
-		var tree *avl.Tree[Uint, *PriceLevelL3]
 		var priceLevel *avl.Node[Uint, *PriceLevelL3]
 		if order.IsBuy() {
-			tree = &ob.asks
 			priceLevel = ob.TopAsk()
 		} else {
-			tree = &ob.bids
 			priceLevel = ob.TopBid()
 		}
 		if priceLevel == nil {
@@ -243,7 +234,7 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 			}
 		}
 
-		// Special case for 'Fill-Or-Kill' and 'All-Or-None' orders (workaround is needed)
+		// Special case for 'Fill-Or-Kill' and 'All-Or-None' orders
 		if order.IsFOK() || order.IsAON() {
 
 			// Calculate the matching chain
@@ -255,7 +246,7 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 
 			// Execute orders in the matching chain
 			// TODO: Re-implement matching chains
-			e.executeMatchingChain(ob, tree, priceLevel, order.price, chain)
+			e.executeMatchingChain(ob, priceLevel, order.price, chain)
 
 			// Call the corresponding handlers
 			// TODO: Call OnExecuteTrade handler!
@@ -374,12 +365,11 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) {
 }
 
 ////////////////////////////////////////////////////////////////
-// Matching chains (not ready for production)
+// Matching chains
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) executeMatchingChain(
 	ob *OrderBook,
-	tree *avl.Tree[Uint, *PriceLevelL3],
 	node *avl.Node[Uint, *PriceLevelL3],
 	price Uint,
 	volume Uint,
@@ -405,6 +395,7 @@ func (e *Engine) executeMatchingChain(
 				// TODO: Call OnExecuteTrade handler!
 				// NOTE: To do that it is necessary to re-implement executeMatchingChain() method
 				e.handler.OnExecuteOrder(ob, order, price, quantity)
+				// e.handler.OnExecuteTrade(ob, order, reducingOrder, price, quantity)
 
 				// Update the corresponding market price
 				ob.updateLastPrice(order.side, price)
@@ -507,7 +498,6 @@ func (e *Engine) calculateMatchingChain(
 }
 
 func (e *Engine) calculateMatchingChainCross(
-	ob *OrderBook,
 	bid *avl.Node[Uint, *PriceLevelL3],
 	ask *avl.Node[Uint, *PriceLevelL3],
 ) Uint {

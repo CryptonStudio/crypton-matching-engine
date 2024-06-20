@@ -491,10 +491,6 @@ func (ob *OrderBook) updateMarketPrice(price Uint) {
 	ob.marketPrice = price
 }
 
-func (ob *OrderBook) updateMarkPrice(price Uint) {
-	ob.marketPrice = price
-}
-
 func (ob *OrderBook) updateLastPrice(side OrderSide, price Uint) {
 	if side == OrderSideBuy {
 		ob.lastBidPrice = price

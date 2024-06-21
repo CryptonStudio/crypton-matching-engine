@@ -21,7 +21,9 @@ type Order struct {
 	price Uint
 
 	stopPrice     Uint
+	stopPriceMode StopPriceMode
 	takeProfit    bool
+
 	quantity      Uint
 	quoteQuantity Uint
 
@@ -214,6 +216,11 @@ func (o *Order) StopPrice() Uint {
 	return o.stopPrice
 }
 
+// StopPriceMode returns the order stop price mode.
+func (o *Order) StopPriceMode() StopPriceMode {
+	return o.stopPriceMode
+}
+
 // Quantity returns the order quantity.
 func (o *Order) Quantity() Uint {
 	return o.quantity
@@ -386,4 +393,14 @@ func (o *Order) RestoreExecution(executed, executedQuote, restQuantity Uint) {
 	o.executedQuantity = executed
 	o.executedQuoteQuantity = executedQuote
 	o.restQuantity = restQuantity
+}
+
+////////////////////////////////////////////////////////////////
+
+func (o *Order) Activated() bool {
+	return o.Type() == OrderTypeLimit || o.Type() == OrderTypeMarket
+}
+
+func (o *Order) PartiallyExecuted() bool {
+	return !o.ExecutedQuantity().IsZero()
 }

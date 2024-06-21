@@ -5,7 +5,6 @@ package matching
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error {
-
 	// Create a new order
 	newOrder := e.allocator.GetOrder()
 	*newOrder = order
@@ -89,7 +88,7 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 	*newOrder = order
 
 	// Find the market price for further stop calculation
-	marketPrice := ob.GetMarketPrice()
+	marketPrice := ob.GetStopPrice(order.stopPriceMode)
 
 	// If order isn't activated immediately we should specify if order is take profit or stop loss
 	if newOrder.IsBuy() {
@@ -187,13 +186,13 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 	*newOrder = order
 
 	// Find the market price for further stop calculation
-	marketPrice := ob.GetMarketPrice()
+	engineStopPrice := ob.GetStopPrice(order.stopPriceMode)
 
 	// If order isn't activated immediately we should specify if order is take profit or stop loss
 	if newOrder.IsBuy() {
-		newOrder.takeProfit = newOrder.stopPrice.LessThan(marketPrice)
+		newOrder.takeProfit = newOrder.stopPrice.LessThan(engineStopPrice)
 	} else {
-		newOrder.takeProfit = newOrder.stopPrice.GreaterThan(marketPrice)
+		newOrder.takeProfit = newOrder.stopPrice.GreaterThan(engineStopPrice)
 	}
 
 	// Recalculate stop price for trailing stop orders
@@ -218,7 +217,7 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 	if e.matching && !recursive {
 
 		// Check the market price
-		arbitrage := newOrder.stopPrice.Equals(marketPrice)
+		arbitrage := newOrder.stopPrice.Equals(engineStopPrice)
 		if arbitrage {
 			// Convert the stop-limit order into the limit order
 			newOrder.orderType = OrderTypeLimit
@@ -556,14 +555,13 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error 
 
 // Checks linked OCO order and deletes if it exists
 func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, recursive bool) error {
-
 	if order.linkedOrderID == 0 {
 		return nil
 	}
 
 	linkedOrder := ob.Order(order.linkedOrderID)
 	if linkedOrder != nil {
-		err := e.deleteOrder(ob, linkedOrder, false)
+		err := e.deleteOrder(ob, linkedOrder, recursive)
 		if err != nil {
 			return err
 		}

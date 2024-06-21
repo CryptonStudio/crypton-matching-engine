@@ -5,6 +5,9 @@ import (
 )
 
 // List represents a doubly linked list.
+//
+// A doubly linked list (DLL) is a special type of linked list in which each node contains
+// a pointer to the previous node as well as the next node of the linked list.
 type List[T any] struct {
 	pool *sync.Pool // optional pool used to create/release list elements
 	root Element[T] // sentinel list element, only &root, root.prev, and root.next are used
@@ -142,8 +145,6 @@ func (l *List[T]) MoveAfter(e, mark *Element[T]) {
 }
 
 // Remove removes e from l if e is an element of list l.
-// It returns the element value e.Value.
-// The element must not be nil.
 func (l *List[T]) Remove(e *Element[T]) (v T, err error) {
 	if e == nil {
 		err = ErrorListElementIsNil

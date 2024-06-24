@@ -2645,6 +2645,79 @@ func TestTimeInForce(t *testing.T) {
 	})
 }
 
+func FuzzLimitTimeInForce(f *testing.F) {
+	const symbolID = 1
+
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, a []byte) {
+		if len(a) == 0 {
+			return
+		}
+		if len(a)%4 != 0 {
+			return
+		}
+
+		var orders []matching.Order
+
+		for i := 0; i < len(a); i += 4 {
+			side := matching.OrderSide(a[i])
+			if !(side == matching.OrderSideBuy || side == matching.OrderSideSell) {
+				return
+			}
+			tif := matching.OrderTimeInForce(a[i+1])
+			if !(tif == matching.OrderTimeInForceGTC || tif == matching.OrderTimeInForceIOC ||
+				tif == matching.OrderTimeInForceFOK || tif == matching.OrderTimeInForceAON) {
+				return
+			}
+			price := matching.NewUint(uint64(a[i+2])).Mul64(matching.UintPrecision).Div64(10)
+			quantity := matching.NewUint(uint64(a[i+3])).Mul64(matching.UintPrecision).Div64(10)
+			restLocked := quantity
+			if side == matching.OrderSideBuy {
+				restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
+			}
+			orders = append(orders, matching.NewLimitOrder(
+				symbolID, uint64(i+1), side, tif, price, quantity, matching.NewZeroUint(), restLocked,
+			))
+		}
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		setupHandler := func(t *testing.T) matching.Handler {
+			handler := mockmatching.NewMockHandler(ctrl)
+			setupMockHandler(t, handler)
+			return handler
+		}
+
+		engine := matching.NewEngine(setupHandler(t), false)
+		engine.EnableMatching()
+
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
+		require.NoError(t, err)
+
+		defer func() {
+			// recover from panic if one occurred. Set err to nil otherwise.
+			if recover() != nil {
+				t.Logf("orders set:\n")
+				for i := range orders {
+					t.Logf("side=%s, tif=%s, price=%s, quantity=%s\n",
+						orders[i].Side().String(),
+						orders[i].TimeInForce().String(),
+						orders[i].Price().ToFloatString(),
+						orders[i].Quantity().ToFloatString(),
+					)
+				}
+				t.Fail()
+			}
+		}()
+
+		for i := range orders {
+			engine.AddOrder(orders[i])
+		}
+	})
+}
+
 // This function is helper to define base bids and asks (not recommended to modify)
 func setupMarketState(t *testing.T, engine *matching.Engine, symbolID uint32) {
 	_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true, Mark: true, Index: true})

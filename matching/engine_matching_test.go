@@ -2274,6 +2274,7 @@ func FuzzLimitTimeInForce(f *testing.F) {
 		if len(a) == 0 {
 			return
 		}
+		// 0: order side, 1: TIF, 2: price, 3: quantity
 		if len(a)%4 != 0 {
 			return
 		}
@@ -2297,9 +2298,9 @@ func FuzzLimitTimeInForce(f *testing.F) {
 				restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
 			}
 
-			for i := range symbolIDs {
+			for j := range symbolIDs {
 				orders = append(orders, matching.NewLimitOrder(
-					symbolIDs[i], uint64(i+1), side, tif, price, quantity, matching.NewZeroUint(), restLocked,
+					symbolIDs[j], uint64(j*len(a)+i+1), side, tif, price, quantity, matching.NewZeroUint(), restLocked,
 				))
 			}
 		}
@@ -2364,6 +2365,160 @@ func FuzzLimitTimeInForce(f *testing.F) {
 			engine.AddOrder(orders[i])
 		}
 	})
+}
+
+func FuzzAllOrders(f *testing.F) {
+
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, a []byte) {
+		testAllOrders(t, a)
+	})
+}
+
+func TestFailedExample(t *testing.T) {
+	testAllOrders(t, []byte("\x01\x01\x01A90\x02\x04\x03000\x01\x01\x01B00\x02\x01\x01010\x01\x01\x01900\x01\x01\x01B00\x02\x01\x01090"))
+}
+
+func testAllOrders(t *testing.T, a []byte) {
+	symbolIDs := []uint32{1, 2, 3}
+
+	if len(a) == 0 {
+		return
+	}
+	// 0: order side, 1: order type, 2: TIF, 3: price, 4: quantity, 5: stop price
+	if len(a)%6 != 0 {
+		return
+	}
+
+	var orders []matching.Order
+
+	for i := 0; i < len(a); i += 6 {
+		side := matching.OrderSide(a[i])
+		if !(side == matching.OrderSideBuy || side == matching.OrderSideSell) {
+			return
+		}
+		orderType := matching.OrderType(a[i+1])
+		if !(orderType == matching.OrderTypeLimit || orderType == matching.OrderTypeStopLimit ||
+			orderType == matching.OrderTypeMarket || orderType == matching.OrderTypeStop) {
+			return
+		}
+		tif := matching.OrderTimeInForce(a[i+2])
+		if !(tif == matching.OrderTimeInForceGTC || tif == matching.OrderTimeInForceIOC ||
+			tif == matching.OrderTimeInForceFOK) {
+			return
+		}
+		// no zero quantity
+		if a[i+4] == 0 {
+			return
+		}
+		price := matching.NewUint(uint64(a[i+3])).Mul64(matching.UintPrecision).Div64(10)
+		stopPrice := matching.NewUint(uint64(a[i+5])).Mul64(matching.UintPrecision).Div64(10)
+		quantity := matching.NewUint(uint64(a[i+4])).Mul64(matching.UintPrecision).Div64(10)
+		restLocked := quantity
+		if side == matching.OrderSideBuy && (orderType == matching.OrderTypeLimit || orderType == matching.OrderTypeStopLimit) {
+			restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
+		}
+
+		for j := range symbolIDs {
+			var o matching.Order
+			switch orderType {
+			case matching.OrderTypeLimit:
+				o = matching.NewLimitOrder(
+					symbolIDs[j], uint64(j*len(a)+i+1), side, tif, price, quantity, matching.NewZeroUint(), restLocked,
+				)
+			case matching.OrderTypeStopLimit:
+				o = matching.NewStopLimitOrder(
+					symbolIDs[j], uint64(j*len(a)+i+1), side, tif, price, matching.StopPriceModeMarket,
+					stopPrice, quantity, matching.NewZeroUint(), restLocked,
+				)
+			case matching.OrderTypeMarket:
+				o = matching.NewMarketOrder(
+					symbolIDs[j], uint64(j*len(a)+i+1), side, matching.OrderTimeInForceIOC, quantity,
+					matching.NewZeroUint(), price, matching.NewMaxUint(),
+				)
+			case matching.OrderTypeStop:
+				o = matching.NewStopOrder(
+					symbolIDs[j], uint64(j*len(a)+i+1), side, matching.OrderTimeInForceIOC,
+					matching.StopPriceModeMarket, stopPrice, quantity,
+					matching.NewZeroUint(), price, matching.NewMaxUint(),
+				)
+			}
+			orders = append(orders, o)
+		}
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	setupHandler := func(t *testing.T) matching.Handler {
+		handler := mockmatching.NewMockHandler(ctrl)
+		setupMockHandler(t, handler)
+		return handler
+	}
+
+	engine := matching.NewEngine(setupHandler(t), false)
+	engine.EnableMatching()
+
+	// BTC_USDT
+	symbols := getSymbolsWithLimits()
+	_, err := engine.AddOrderBook(matching.NewSymbolWithLimits(
+		symbolIDs[0],
+		symbols[0].Name,
+		symbols[0].PriceLimits,
+		symbols[0].LotSizeLimits),
+		matching.NewUint(0),
+		matching.StopPriceModeConfig{Market: true},
+	)
+	require.NoError(t, err)
+
+	// ETH_USDT
+	_, err = engine.AddOrderBook(matching.NewSymbolWithLimits(
+		symbolIDs[1],
+		symbols[1].Name,
+		symbols[1].PriceLimits,
+		symbols[1].LotSizeLimits),
+		matching.NewUint(0),
+		matching.StopPriceModeConfig{Market: true},
+	)
+	require.NoError(t, err)
+
+	// simple OB
+	_, err = engine.AddOrderBook(matching.NewSymbol(symbolIDs[2], ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
+	require.NoError(t, err)
+
+	defer func() {
+		// recover from panic if one occurred. Set err to nil otherwise.
+		if recover() != nil {
+			t.Logf("orders set:\n")
+			for i := range orders {
+				t.Logf("id=%d side=%s, tif=%s, price=%s, quantity=%s\n",
+					orders[i].ID(),
+					orders[i].Side().String(),
+					orders[i].TimeInForce().String(),
+					orders[i].Price().ToFloatString(),
+					orders[i].Quantity().ToFloatString(),
+				)
+			}
+			t.Fail()
+		}
+	}()
+
+	for i := range orders {
+		fmt.Printf("id=%d side=%s, type=%s, tif=%s, price=%s, quantity=%s, stopPrice=%s\n",
+			orders[i].ID(),
+			orders[i].Side().String(),
+			orders[i].Type().String(),
+			orders[i].TimeInForce().String(),
+			orders[i].Price().ToFloatString(),
+			orders[i].Quantity().ToFloatString(),
+			orders[i].StopPrice().ToFloatString(),
+		)
+	}
+
+	for i := range orders {
+		engine.AddOrder(orders[i])
+	}
 }
 
 // LIMITS

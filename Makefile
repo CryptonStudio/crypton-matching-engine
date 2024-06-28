@@ -15,3 +15,6 @@ cover:
 
 fuzz:
 	cd matching && go clean -fuzzcache && go test -fuzz FuzzLimitTimeInForce
+
+fuzz-all:
+	cd matching && go clean -fuzzcache && go test -fuzz FuzzAllOrders

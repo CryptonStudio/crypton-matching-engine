@@ -1,5 +1,7 @@
 package matching
 
+import "fmt"
+
 // Engine is used to manage the market with orders, price levels and order books.
 // Automatic orders matching can be enabled with EnableMatching() method or can be
 // manually performed with Match() method.
@@ -335,8 +337,17 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 
 			// Check if stop-limit order has been executed or activated
 			if stopLimitOrderFromOB == nil || stopLimitOrderFromOB.Activated() {
+				// check if order has been already deleted
+				limitOrderFromOB = ob.Order(limitOrderFromOB.id)
+				if limitOrderFromOB == nil {
+					return nil
+				}
+
 				// Cancel limit order
-				e.deleteOrder(ob, limitOrderFromOB, false)
+				err := e.deleteOrder(ob, limitOrderFromOB, true, false)
+				if err != nil {
+					return fmt.Errorf("failed to delete order (id: %d): %w", limitOrderFromOB.ID(), err)
+				}
 			}
 		}
 
@@ -416,8 +427,17 @@ func (e *Engine) AddTPSL(TP Order, SL Order) error {
 
 			// Check if sl order has been executed or activated
 			if slFromOB == nil || slFromOB.Activated() {
+				// check if order has been already deleted
+				tpFromOB = ob.Order(TP.id)
+				if tpFromOB == nil {
+					return nil
+				}
+
 				// Cancel tp linked order
-				e.deleteOrder(ob, tpFromOB, false)
+				err := e.deleteOrder(ob, tpFromOB, true, false)
+				if err != nil {
+					return fmt.Errorf("failed to delete order (id: %d): %w", tpFromOB.ID(), err)
+				}
 			}
 		}
 
@@ -445,7 +465,7 @@ func (e *Engine) ReduceOrder(symbolID uint32, orderID uint64, quantity Uint) err
 		}
 
 		// Reduce the order
-		return e.reduceOrder(ob, order, quantity, false)
+		return e.reduceOrder(ob, order, quantity, true, false)
 	}
 
 	return e.performOrderBookTask(ob, task)
@@ -545,10 +565,13 @@ func (e *Engine) DeleteOrder(symbolID uint32, orderID uint64) error {
 		}
 
 		// Delete linked order if it exists
-		e.deleteLinkedOrder(ob, order, false)
+		err := e.deleteLinkedOrder(ob, order, true, false)
+		if err != nil {
+			return fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
+		}
 
 		// Delete the order
-		return e.deleteOrder(ob, order, false)
+		return e.deleteOrder(ob, order, true, false)
 	}
 
 	return e.performOrderBookTask(ob, task)
@@ -582,9 +605,8 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 		// Call the corresponding handler
 		e.handler.OnExecuteOrder(ob, order, order.price, quantity)
 
-		// Update the corresponding market price
-		ob.updateLastPrice(order.side, order.price)
-		ob.updateMatchingPrice(order.side, order.price)
+		// Update the common market price
+		ob.updateMarketPrice(order.price)
 
 		visible := order.VisibleQuantity()
 
@@ -633,11 +655,11 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 
 		// Automatic order matching
 		if e.matching {
-			e.match(ob)
+			err := e.match(ob)
+			if err != nil {
+				return fmt.Errorf("failed to match: %w", err)
+			}
 		}
-
-		// Reset matching price
-		ob.resetMatchingPrice()
 
 		return
 	}
@@ -673,9 +695,8 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 		// Call the corresponding handler
 		e.handler.OnExecuteOrder(ob, order, price, quantity)
 
-		// Update the corresponding market price
-		ob.updateLastPrice(order.side, price)
-		ob.updateMatchingPrice(order.side, price)
+		// Update the common market price
+		ob.updateMarketPrice(order.price)
 
 		visible := order.VisibleQuantity()
 
@@ -724,11 +745,11 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 
 		// Automatic order matching
 		if e.matching {
-			e.match(ob)
+			err := e.match(ob)
+			if err != nil {
+				return fmt.Errorf("failed to match: %w", err)
+			}
 		}
-
-		// Reset matching price
-		ob.resetMatchingPrice()
 
 		return
 	}
@@ -748,7 +769,10 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 // less than the top (best) ask price!
 func (e *Engine) Match() {
 	task := func(ob *OrderBook) error {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 		return nil
 	}
 	for i, c := 0, len(e.orderBooks); i < c; i++ {

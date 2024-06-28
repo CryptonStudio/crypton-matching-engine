@@ -1,6 +1,8 @@
 package matching
 
 import (
+	"fmt"
+
 	"github.com/cryptonstudio/crypton-matching-engine/types/avl"
 )
 
@@ -8,37 +10,45 @@ import (
 // Activating stop orders
 ////////////////////////////////////////////////////////////////
 
-func (e *Engine) activateAllStopOrders(ob *OrderBook) (activated bool) {
-	for stop := false; !stop; {
-		stop = true
+func (e *Engine) activateAllStopOrders(ob *OrderBook) (bool, error) {
+	activated := false
 
-		for _, mode := range ob.spModes {
-			// Try to activate buy stop orders
-			if e.activateStopOrders(ob, OrderSideBuy, ob.TopBuyStop(), mode) ||
-				e.activateStopOrders(ob, OrderSideBuy, ob.TopTrailingBuyStop(), mode) {
-				activated = true
-				stop = false
-			}
-
-			// Recalculate trailing buy stop orders
-			e.recalculateTrailingStopPrice(ob, OrderSideSell, ob.TopAsk())
-
-			// Try to activate sell stop orders
-			if e.activateStopOrders(ob, OrderSideSell, ob.TopSellStop(), mode) ||
-				e.activateStopOrders(ob, OrderSideSell, ob.TopTrailingSellStop(), mode) {
-				activated = true
-				stop = false
-			}
-
-			// Recalculate trailing sell stop orders
-			e.recalculateTrailingStopPrice(ob, OrderSideBuy, ob.TopBid())
+	for _, mode := range ob.spModes {
+		// Try to activate buy stop orders
+		buyActivated, err := e.activateStopOrders(ob, OrderSideBuy, ob.TopBuyStop(), mode)
+		if err != nil {
+			return false, fmt.Errorf("failed to activate buy stop orders: %w", err)
 		}
+
+		buyTrailingActivated, err := e.activateStopOrders(ob, OrderSideBuy, ob.TopTrailingBuyStop(), mode)
+		if err != nil {
+			return false, fmt.Errorf("failed to activate trailing buy stop orders: %w", err)
+		}
+
+		// Recalculate trailing buy stop orders
+		e.recalculateTrailingStopPrice(ob, OrderSideSell, ob.TopAsk())
+
+		// Try to activate sell stop orders
+		sellActivated, err := e.activateStopOrders(ob, OrderSideSell, ob.TopSellStop(), mode)
+		if err != nil {
+			return false, fmt.Errorf("failed to activate sell stop orders: %w", err)
+		}
+
+		sellTrailingActivated, err := e.activateStopOrders(ob, OrderSideSell, ob.TopTrailingSellStop(), mode)
+		if err != nil {
+			return false, fmt.Errorf("failed to activate trailing sell stop orders: %w", err)
+		}
+
+		// Recalculate trailing sell stop orders
+		e.recalculateTrailingStopPrice(ob, OrderSideBuy, ob.TopBid())
+
+		activated = activated || buyActivated || buyTrailingActivated || sellActivated || sellTrailingActivated
 	}
 
-	return
+	return activated, nil
 }
 
-func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Node[Uint, *PriceLevelL3], stopPriceMode StopPriceMode) (activated bool) {
+func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Node[Uint, *PriceLevelL3], stopPriceMode StopPriceMode) (activated bool, err error) {
 	activationPrice := ob.GetStopPrice(stopPriceMode)
 
 	// Return if given price level node is nil
@@ -78,21 +88,21 @@ func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Nod
 		switch orderPtr.Value.orderType {
 		case OrderTypeStop, OrderTypeTrailingStop:
 			// Activate the stop order
-			activated = e.activateStopOrder(ob, orderPtr.Value)
+			activated, err = e.activateStopOrder(ob, orderPtr.Value)
 		case OrderTypeStopLimit, OrderTypeTrailingStopLimit:
 			// Activate the stop-limit order
-			activated = e.activateStopLimitOrder(ob, orderPtr.Value)
+			activated, err = e.activateStopLimitOrder(ob, orderPtr.Value)
 		}
 	}
 
 	return
 }
 
-func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) bool {
+func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 	// Delete the stop order from the order book
 	_, err := ob.deleteOrder(ob.treeForOrder(order), order)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("failed to delete order: %w", err)
 	}
 
 	// Convert the stop order into the market order
@@ -120,17 +130,20 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) bool {
 	// Release the order
 	e.allocator.PutOrder(order)
 
-	return true
+	return true, nil
 }
 
-func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) bool {
+func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, error) {
 	// Check and delete linked orders (OCO)
-	e.deleteLinkedOrder(ob, order, false)
+	err := e.deleteLinkedOrder(ob, order, true, false)
+	if err != nil {
+		return false, fmt.Errorf("failed to delete linked order: %w", err)
+	}
 
 	// Delete the stop-limit order from the order book
-	_, err := ob.deleteOrder(ob.treeForOrder(order), order)
+	_, err = ob.deleteOrder(ob.treeForOrder(order), order)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("failed to delete order: %w", err)
 	}
 
 	// Convert the stop-limit order into the limit order
@@ -141,20 +154,21 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) bool {
 	e.handler.OnUpdateOrder(ob, order)
 
 	// Match the limit order
-	e.matchLimitOrder(ob, order)
+	err = e.matchLimitOrder(ob, order)
+	if err != nil {
+		return false, fmt.Errorf("failed to match limit order: %w", err)
+	}
 
 	// Add a new limit order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
 	if !order.IsExecuted() && !order.IsIOC() && !order.IsFOK() {
-
 		// Add the new limit order into the order book
 		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(order), order)
 		if err != nil {
-			return false
+			return false, nil
 		}
 		e.updatePriceLevel(ob, priceLevelUpdate)
 
 	} else {
-
 		// Call the corresponding handler
 		e.handler.OnDeleteOrder(ob, order)
 
@@ -165,7 +179,7 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) bool {
 		e.allocator.PutOrder(order)
 	}
 
-	return true
+	return true, nil
 }
 
 ////////////////////////////////////////////////////////////////

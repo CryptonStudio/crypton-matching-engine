@@ -85,10 +85,6 @@ const (
 	// be executed immediately in its entirety; otherwise, the entire order will be cancelled
 	// (i.e., no partial execution of the order is allowed).
 	OrderTimeInForceFOK
-	// All-Or-None (AON) - An AON order is an order to buy or sell a stock
-	// that must be executed in its entirety, or not executed at all. AON orders that cannot be
-	// executed immediately remain active until they are executed or cancelled.
-	OrderTimeInForceAON
 )
 
 func (ot OrderTimeInForce) String() string {
@@ -99,8 +95,6 @@ func (ot OrderTimeInForce) String() string {
 		return "immediate-or-cancel"
 	case OrderTimeInForceFOK:
 		return "fill-or-kill"
-	case OrderTimeInForceAON:
-		return "all-or-none"
 	default:
 		return "unknown"
 	}

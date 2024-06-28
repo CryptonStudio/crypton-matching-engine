@@ -20,6 +20,7 @@ var (
 	ErrInvalidOrderStopPrice    = errors.New("invalid order stop price")
 	ErrInvalidOrderQuantity     = errors.New("invalid order quantity")
 	ErrForbiddenManualExecution = errors.New("manual execution is forbidden for automatically matching engine")
+	ErrOrderTreeNotFound        = errors.New("order tree not found")
 
 	// OCO
 	ErrBuyOCOStopPriceLessThanMarketPrice     = errors.New("stop price must be greater than market price (buy OCO order)")

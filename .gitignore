@@ -25,3 +25,5 @@ go.work
 
 # VS code
 .vscode
+
+testdata

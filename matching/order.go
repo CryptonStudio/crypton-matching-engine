@@ -16,7 +16,8 @@ type Order struct {
 	orderType   OrderType
 	side        OrderSide
 	timeInForce OrderTimeInForce
-	_           uint8 // required for struct bytes alignment
+
+	_ uint8 // required for struct bytes alignment
 
 	price Uint
 
@@ -168,11 +169,6 @@ func (o *Order) IsIOC() bool {
 // IsFOK returns true if 'Fill-Or-Kill' order.
 func (o *Order) IsFOK() bool {
 	return o.timeInForce == OrderTimeInForceFOK
-}
-
-// IsAON returns true if 'All-Or-None' order.
-func (o *Order) IsAON() bool {
-	return o.timeInForce == OrderTimeInForceAON
 }
 
 ////////////////////////////////////////////////////////////////

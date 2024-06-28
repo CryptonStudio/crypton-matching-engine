@@ -1,5 +1,9 @@
 package matching
 
+import (
+	"fmt"
+)
+
 ////////////////////////////////////////////////////////////////
 // Adding new orders
 ////////////////////////////////////////////////////////////////
@@ -14,12 +18,14 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.matchLimitOrder(ob, newOrder)
+		err := e.matchLimitOrder(ob, newOrder)
+		if err != nil {
+			return fmt.Errorf("failed to match limit order: %w", err)
+		}
 	}
 
 	// Add a new order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
 	if !newOrder.IsExecuted() && !newOrder.IsIOC() && !newOrder.IsFOK() {
-
 		// Insert the order
 		if ob.orders.Set(newOrder.id, newOrder); false {
 
@@ -38,7 +44,6 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 			return err
 		}
 		e.updatePriceLevel(ob, priceLevelUpdate)
-
 	} else {
 		// Call the corresponding handler
 		e.handler.OnDeleteOrder(ob, newOrder)
@@ -46,17 +51,16 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
 
 func (e *Engine) addMarketOrder(ob *OrderBook, order Order, recursive bool) error {
-
 	newOrder := order
 
 	// Call the corresponding handler
@@ -72,17 +76,16 @@ func (e *Engine) addMarketOrder(ob *OrderBook, order Order, recursive bool) erro
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
 
 func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error {
-
 	// Create a new order
 	newOrder := e.allocator.GetOrder()
 	*newOrder = order
@@ -132,11 +135,11 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 
 			// Automatic order matching
 			if e.matching && !recursive {
-				e.match(ob)
+				err := e.match(ob)
+				if err != nil {
+					return fmt.Errorf("failed to match: %w", err)
+				}
 			}
-
-			// Reset matching price
-			ob.resetMatchingPrice()
 
 			return nil
 		}
@@ -170,17 +173,16 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
 
 func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) error {
-
 	// Create a new order
 	newOrder := e.allocator.GetOrder()
 	*newOrder = order
@@ -227,7 +229,10 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 			e.handler.OnUpdateOrder(ob, newOrder)
 
 			// Match the limit order
-			e.matchLimitOrder(ob, newOrder)
+			err := e.matchLimitOrder(ob, newOrder)
+			if err != nil {
+				return fmt.Errorf("failed to match limit order: %w", err)
+			}
 
 			// Add a new limit order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
 			if !newOrder.IsExecuted() && !newOrder.IsIOC() && !newOrder.IsFOK() {
@@ -257,11 +262,11 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 
 			// Automatic order matching
 			if e.matching && !recursive {
-				e.match(ob)
+				err := e.match(ob)
+				if err != nil {
+					return fmt.Errorf("failed to match: %w", err)
+				}
 			}
-
-			// Reset matching price
-			ob.resetMatchingPrice()
 
 			return nil
 		}
@@ -295,11 +300,11 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
@@ -308,8 +313,7 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 // Reducing orders
 ////////////////////////////////////////////////////////////////
 
-func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursive bool) error {
-
+func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, inOB, recursive bool) error {
 	// Calculate the minimal possible order quantity to reduce
 	quantity = Min(quantity, order.restQuantity)
 
@@ -326,13 +330,15 @@ func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursi
 		e.handler.OnDeleteOrder(ob, order)
 	}
 
-	// Reduce the order in the order book
-	priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, quantity, visible)
-	if err != nil {
-		return err
-	}
-	if order.IsLimit() {
-		e.updatePriceLevel(ob, priceLevelUpdate)
+	if inOB {
+		// Reduce the order in the order book
+		priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, quantity, visible)
+		if err != nil {
+			return err
+		}
+		if order.IsLimit() {
+			e.updatePriceLevel(ob, priceLevelUpdate)
+		}
 	}
 
 	// Delete the empty order
@@ -347,11 +353,11 @@ func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursi
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
@@ -395,7 +401,10 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 
 		// Automatic order matching
 		if e.matching && !recursive {
-			e.matchLimitOrder(ob, order)
+			err := e.matchLimitOrder(ob, order)
+			if err != nil {
+				return fmt.Errorf("failed to match limit order: %w", err)
+			}
 		}
 
 		// Add non empty order into the order book
@@ -428,11 +437,11 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
@@ -471,7 +480,10 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.matchLimitOrder(ob, order)
+		err := e.matchLimitOrder(ob, order)
+		if err != nil {
+			return fmt.Errorf("failed to match limit order: %w", err)
+		}
 	}
 
 	// Add the order
@@ -509,11 +521,11 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
@@ -522,15 +534,17 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 // Deleting orders
 ////////////////////////////////////////////////////////////////
 
-func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error {
-
+func (e *Engine) deleteOrder(ob *OrderBook, order *Order, inOB bool, recursive bool) error {
 	// Delete the order from the order book
-	priceLevelUpdate, err := ob.deleteOrder(ob.treeForOrder(order), order)
-	if err != nil {
-		return err
-	}
-	if order.IsLimit() {
-		e.updatePriceLevel(ob, priceLevelUpdate)
+	if inOB {
+		priceLevelUpdate, err := ob.deleteOrder(ob.treeForOrder(order), order)
+		if err != nil {
+			return err
+		}
+
+		if order.IsLimit() {
+			e.updatePriceLevel(ob, priceLevelUpdate)
+		}
 	}
 
 	// Call the corresponding handler
@@ -544,27 +558,24 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error 
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
 
 // Checks linked OCO order and deletes if it exists
-func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, recursive bool) error {
+func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, inOB, recursive bool) error {
 	if order.linkedOrderID == 0 {
 		return nil
 	}
 
 	linkedOrder := ob.Order(order.linkedOrderID)
 	if linkedOrder != nil {
-		err := e.deleteOrder(ob, linkedOrder, recursive)
-		if err != nil {
-			return err
-		}
+		return e.deleteOrder(ob, linkedOrder, inOB, recursive)
 	}
 
 	return nil

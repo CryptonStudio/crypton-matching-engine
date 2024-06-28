@@ -1,6 +1,7 @@
 package matching
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/tidwall/hashmap"
@@ -255,6 +256,10 @@ func (ob *OrderBook) GetMarketPrice() Uint {
 	return ob.marketPrice
 }
 
+func (ob *OrderBook) updateMarketPrice(price Uint) {
+	ob.marketPrice = price
+}
+
 func (ob *OrderBook) GetMarkPrice() Uint {
 	ob.markPriceMutex.RLock()
 	defer ob.markPriceMutex.RUnlock()
@@ -311,7 +316,7 @@ func (ob *OrderBook) addOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Order)
 
 	// Ensure the tree is specified
 	if tree == nil {
-		err = ErrInvalidOrderType
+		err = ErrOrderTreeNotFound
 		return
 	}
 
@@ -359,7 +364,7 @@ func (ob *OrderBook) reduceOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 
 	// Determine the thee to work from the order
 	if tree == nil {
-		err = ErrInvalidOrderType
+		err = ErrOrderTreeNotFound
 		return
 	}
 
@@ -413,7 +418,7 @@ func (ob *OrderBook) deleteOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 
 	// Ensure the tree is specified
 	if tree == nil {
-		err = ErrInvalidOrderType
+		err = ErrOrderTreeNotFound
 		return
 	}
 
@@ -483,35 +488,6 @@ func (ob *OrderBook) deletePriceLevel(tree *avl.Tree[Uint, *PriceLevelL3], price
 	return err
 }
 
-// //////////////////////////////////////////////////////////////
-// Market prices management
-// //////////////////////////////////////////////////////////////
-
-func (ob *OrderBook) updateMarketPrice(price Uint) {
-	ob.marketPrice = price
-}
-
-func (ob *OrderBook) updateLastPrice(side OrderSide, price Uint) {
-	if side == OrderSideBuy {
-		ob.lastBidPrice = price
-	} else {
-		ob.lastAskPrice = price
-	}
-}
-
-func (ob *OrderBook) updateMatchingPrice(side OrderSide, price Uint) {
-	if side == OrderSideBuy {
-		ob.matchingBidPrice = price
-	} else {
-		ob.matchingAskPrice = price
-	}
-}
-
-func (ob *OrderBook) resetMatchingPrice() {
-	ob.matchingBidPrice = NewZeroUint()
-	ob.matchingAskPrice = NewMaxUint()
-}
-
 ////////////////////////////////////////////////////////////////
 // Internal helpers
 ////////////////////////////////////////////////////////////////
@@ -539,4 +515,29 @@ func (ob *OrderBook) treeForOrder(order *Order) *avl.Tree[Uint, *PriceLevelL3] {
 		}
 	}
 	return nil
+}
+
+// Debugging printer
+func (ob *OrderBook) Debug() {
+	fmt.Printf("\n\nDebugging: order book state\n\n")
+	fmt.Printf("Market price: %s\n", ob.marketPrice.ToFloatString())
+	fmt.Printf("Mark price: %s\n", ob.markPrice.ToFloatString())
+	fmt.Printf("Index price: %s\n", ob.indexPrice.ToFloatString())
+
+	orders := ob.orders.Values()
+
+	fmt.Printf("\nOrders\n")
+	for i := range orders {
+		o := orders[i]
+		fmt.Printf(
+			"Order id=%d side=%s, tif=%s, price=%s, restQty=%s, execQty=%s, qty=%s\n",
+			o.ID(),
+			o.Side().String(),
+			o.TimeInForce().String(),
+			o.Price().ToFloatString(),
+			o.RestQuantity().ToFloatString(),
+			o.ExecutedQuantity().ToFloatString(),
+			o.Quantity().ToFloatString(),
+		)
+	}
 }

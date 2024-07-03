@@ -13,7 +13,7 @@ cover:
 	go tool cover -html=coverage.out
 	rm coverage.out
 
-fuzz:
+fuzz-tif:
 	cd matching && go clean -fuzzcache && go test -fuzz FuzzLimitTimeInForce
 
 fuzz-all:

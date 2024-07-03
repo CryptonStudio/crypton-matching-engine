@@ -9,6 +9,11 @@ import (
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error {
+	// Check duplicate
+	if _, ok := ob.orders.Get(order.id); ok {
+		return ErrOrderDuplicate
+	}
+
 	// Create a new order
 	newOrder := e.allocator.GetOrder()
 	*newOrder = order
@@ -24,19 +29,15 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 		}
 	}
 
-	// Add a new order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
-	if !newOrder.IsExecuted() && !newOrder.IsIOC() && !newOrder.IsFOK() {
-		// Insert the order
-		if ob.orders.Set(newOrder.id, newOrder); false {
+	// Delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' and exit
+	if newOrder.IsIOC() || newOrder.IsFOK() {
+		e.handler.OnDeleteOrder(ob, newOrder)
+	}
 
-			// Call the corresponding handler
-			e.handler.OnDeleteOrder(ob, newOrder)
-
-			// Release the order
-			e.allocator.PutOrder(newOrder)
-
-			return ErrOrderDuplicate
-		}
+	// Add remaining order in order book for GTC
+	if newOrder.IsGTC() && !newOrder.IsExecuted() {
+		// Set order to internal order storage
+		ob.orders.Set(newOrder.id, newOrder)
 
 		// Add the new limit order into the order book
 		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
@@ -44,9 +45,6 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 			return err
 		}
 		e.updatePriceLevel(ob, priceLevelUpdate)
-	} else {
-		// Call the corresponding handler
-		e.handler.OnDeleteOrder(ob, newOrder)
 	}
 
 	// Automatic order matching
@@ -61,6 +59,11 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 }
 
 func (e *Engine) addMarketOrder(ob *OrderBook, order Order, recursive bool) error {
+	// Check duplicate
+	if _, ok := ob.orders.Get(order.id); ok {
+		return ErrOrderDuplicate
+	}
+
 	newOrder := order
 
 	// Call the corresponding handler
@@ -86,6 +89,11 @@ func (e *Engine) addMarketOrder(ob *OrderBook, order Order, recursive bool) erro
 }
 
 func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error {
+	// Check duplicate
+	if _, ok := ob.orders.Get(order.id); ok {
+		return ErrOrderDuplicate
+	}
+
 	// Create a new order
 	newOrder := e.allocator.GetOrder()
 	*newOrder = order
@@ -109,80 +117,47 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 	e.handler.OnAddOrder(ob, newOrder)
 
 	// Automatic order matching
-	if e.matching && !recursive {
-		// Check the market price
-		arbitrage := newOrder.stopPrice.Equals(marketPrice)
-		if arbitrage {
-
-			// Convert the stop order into the market order
-			newOrder.orderType = OrderTypeMarket
-			newOrder.price = NewZeroUint()
-			newOrder.stopPrice = NewZeroUint()
-			if newOrder.IsFOK() {
-				newOrder.timeInForce = OrderTimeInForceFOK
-			} else {
-				newOrder.timeInForce = OrderTimeInForceIOC
-			}
-
-			// Call the corresponding handler
-			e.handler.OnUpdateOrder(ob, newOrder)
-
-			// Match the market order
-			e.matchMarketOrder(ob, newOrder)
-
-			// Call the corresponding handler
-			e.handler.OnDeleteOrder(ob, newOrder)
-
-			// Automatic order matching
-			if e.matching && !recursive {
-				err := e.match(ob)
-				if err != nil {
-					return fmt.Errorf("failed to match: %w", err)
-				}
-			}
-
-			return nil
-		}
+	if !e.matching || recursive {
+		return nil
 	}
 
-	// Add a new order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
-	if !newOrder.IsExecuted() && !newOrder.IsIOC() && !newOrder.IsFOK() {
-
-		// Insert the order
-		if ob.orders.Set(newOrder.id, newOrder); false {
-
-			// Call the corresponding handler
-			e.handler.OnDeleteOrder(ob, newOrder)
-
-			// Release the order
-			e.allocator.PutOrder(newOrder)
-
-			return ErrOrderDuplicate
+	// Check the market price
+	arbitrage := newOrder.stopPrice.Equals(marketPrice)
+	if arbitrage {
+		// Convert the stop order into the market order
+		newOrder.orderType = OrderTypeMarket
+		newOrder.price = NewZeroUint()
+		newOrder.stopPrice = NewZeroUint()
+		if newOrder.IsFOK() {
+			newOrder.timeInForce = OrderTimeInForceFOK
+		} else {
+			newOrder.timeInForce = OrderTimeInForceIOC
 		}
 
-		// Add the new limit order into the order book
-		_, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
-		if err != nil {
-			return err
-		}
+		// Call the corresponding handler
+		e.handler.OnUpdateOrder(ob, newOrder)
 
-	} else {
+		// Match the market order
+		e.matchMarketOrder(ob, newOrder)
+
 		// Call the corresponding handler
 		e.handler.OnDeleteOrder(ob, newOrder)
 	}
 
-	// Automatic order matching
-	if e.matching && !recursive {
-		err := e.match(ob)
-		if err != nil {
-			return fmt.Errorf("failed to match: %w", err)
-		}
+	err := e.match(ob)
+	if err != nil {
+		return fmt.Errorf("failed to match: %w", err)
 	}
 
 	return nil
 }
 
 func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) error {
+	// Check duplicate
+	if _, ok := ob.orders.Get(order.id); ok {
+		return ErrOrderDuplicate
+	}
+
 	// Create a new order
 	newOrder := e.allocator.GetOrder()
 	*newOrder = order
@@ -215,87 +190,51 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 	// Call the corresponding handler
 	e.handler.OnAddOrder(ob, newOrder)
 
-	// Automatic order matching
-	if e.matching && !recursive {
+	// Check the market price
+	arbitrage := newOrder.stopPrice.Equals(engineStopPrice)
+	if !arbitrage {
+		// Set order to internal order storage
+		ob.orders.Set(newOrder.id, newOrder)
 
-		// Check the market price
-		arbitrage := newOrder.stopPrice.Equals(engineStopPrice)
-		if arbitrage {
-			// Convert the stop-limit order into the limit order
-			newOrder.orderType = OrderTypeLimit
-			newOrder.stopPrice = NewZeroUint()
+		// Add the new limit order into the order book
+		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
+		if err != nil {
+			return err
+		}
+		e.updatePriceLevel(ob, priceLevelUpdate)
+	} else {
+		// Convert the stop-limit order into the limit order
+		newOrder.orderType = OrderTypeLimit
+		newOrder.stopPrice = NewZeroUint()
 
-			// Call the corresponding handler
-			e.handler.OnUpdateOrder(ob, newOrder)
+		// Call the corresponding handler
+		e.handler.OnUpdateOrder(ob, newOrder)
 
-			// Match the limit order
+		// Automatic order matching
+		if e.matching && !recursive {
 			err := e.matchLimitOrder(ob, newOrder)
 			if err != nil {
 				return fmt.Errorf("failed to match limit order: %w", err)
 			}
-
-			// Add a new limit order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
-			if !newOrder.IsExecuted() && !newOrder.IsIOC() && !newOrder.IsFOK() {
-
-				// Insert the order
-				if ob.orders.Set(newOrder.id, newOrder); false {
-
-					// Call the corresponding handler
-					e.handler.OnDeleteOrder(ob, newOrder)
-
-					// Release the order
-					e.allocator.PutOrder(newOrder)
-
-					return ErrOrderDuplicate
-				}
-
-				// Add the new limit order into the order book
-				priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
-				if err != nil {
-					return err
-				}
-				e.updatePriceLevel(ob, priceLevelUpdate)
-			} else {
-				// Call the corresponding handler
-				e.handler.OnDeleteOrder(ob, newOrder)
-			}
-
-			// Automatic order matching
-			if e.matching && !recursive {
-				err := e.match(ob)
-				if err != nil {
-					return fmt.Errorf("failed to match: %w", err)
-				}
-			}
-
-			return nil
 		}
-	}
 
-	// Add a new order
-	if !newOrder.IsExecuted() {
-
-		// Insert the order
-		if ob.orders.Set(newOrder.id, newOrder); false {
-
-			// Call the corresponding handler
+		// Delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' and exit
+		if newOrder.IsIOC() || newOrder.IsFOK() {
 			e.handler.OnDeleteOrder(ob, newOrder)
-
-			// Release the order
-			e.allocator.PutOrder(newOrder)
-
-			return ErrOrderDuplicate
 		}
 
-		// Add the new limit order into the order book
-		_, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
-		if err != nil {
-			return err
-		}
+		// Add remaining order in order book for GTC
+		if newOrder.IsGTC() && !newOrder.IsExecuted() {
+			// Set order to internal order storage
+			ob.orders.Set(newOrder.id, newOrder)
 
-	} else {
-		// Call the corresponding handler
-		e.handler.OnDeleteOrder(ob, newOrder)
+			// Add the new limit order into the order book
+			priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
+			if err != nil {
+				return err
+			}
+			e.updatePriceLevel(ob, priceLevelUpdate)
+		}
 	}
 
 	// Automatic order matching
@@ -305,6 +244,37 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 			return fmt.Errorf("failed to match: %w", err)
 		}
 	}
+	return nil
+}
+
+////////////////////////////////////////////////////////////////
+// Executing orders
+////////////////////////////////////////////////////////////////
+
+// executeOrder processes the fact of order execution
+func (e *Engine) executeOrder(ob *OrderBook, order *Order, quantity Uint, quoteQuantity Uint) error {
+	// Decrease the order available quantity
+	if order.IsBuy() {
+		order.SubAvailable(quoteQuantity)
+	} else {
+		order.SubAvailable(quantity)
+	}
+
+	// Increase the order executed quantity
+	order.AddExecutedQuantity(quantity)
+	order.AddExecutedQuoteQuantity(quoteQuantity)
+
+	// Check and delete linked orders
+	err := e.deleteLinkedOrder(ob, order, true)
+	if err != nil {
+		return fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
+	}
+
+	// Reduce the executing order in the order book (also deletes it)
+	err = e.reduceOrder(ob, order, quantity, true)
+	if err != nil {
+		return fmt.Errorf("failed to reduce order (id: %d): %w", order.ID(), err)
+	}
 
 	return nil
 }
@@ -313,24 +283,23 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 // Reducing orders
 ////////////////////////////////////////////////////////////////
 
-func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, inOB, recursive bool) error {
+func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursive bool) error {
 	// Calculate the minimal possible order quantity to reduce
 	quantity = Min(quantity, order.restQuantity)
 
 	// Reduce the order rest quantity
 	visible := order.VisibleQuantity()
-	order.restQuantity = order.restQuantity.Sub(quantity)
+	order.SubRestQuantity(quantity)
 	visible = visible.Sub(order.VisibleQuantity())
 
 	// Call the corresponding handler
 	if !order.IsExecuted() {
 		e.handler.OnUpdateOrder(ob, order)
-
 	} else {
 		e.handler.OnDeleteOrder(ob, order)
 	}
 
-	if inOB {
+	if order.priceLevel != nil {
 		// Reduce the order in the order book
 		priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, quantity, visible)
 		if err != nil {
@@ -343,7 +312,6 @@ func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, inOB, r
 
 	// Delete the empty order
 	if order.IsExecuted() {
-
 		// Erase the order
 		ob.orders.Delete(order.id)
 
@@ -367,7 +335,6 @@ func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, inOB, r
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuantity Uint, additionalAmountToLock Uint, mitigate bool, recursive bool) error {
-
 	// Delete the order from the order book
 	priceLevelUpdate, err := ob.deleteOrder(ob.treeForOrder(order), order)
 	if err != nil {
@@ -381,13 +348,13 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 	order.price = newPrice
 	order.quantity = newQuantity
 	order.restQuantity = newQuantity
-	order.available = order.available.Add(additionalAmountToLock)
+	order.AddAvailable(additionalAmountToLock)
 
 	// In-Flight Mitigation (IFM)
 	if mitigate {
 		// This calculation has the goal of preventing orders from being overfilled
 		if newQuantity.GreaterThan(order.executedQuantity) {
-			order.restQuantity = newQuantity.Sub(order.executedQuantity)
+			order.SubRestQuantity(order.executedQuantity)
 		} else {
 			order.restQuantity = NewZeroUint()
 		}
@@ -409,7 +376,6 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 
 		// Add non empty order into the order book
 		if !order.IsExecuted() {
-
 			// Add the modified order into the order book
 			priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(order), order)
 			if err != nil {
@@ -424,7 +390,6 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 
 	// Delete the empty order
 	if order.IsExecuted() {
-
 		// Call the corresponding handler
 		e.handler.OnDeleteOrder(ob, order)
 
@@ -451,7 +416,6 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPrice Uint, newQuantity Uint, recursive bool) error {
-
 	// Delete the old order from the order book
 	priceLevelUpdate, err := ob.deleteOrder(ob.treeForOrder(order), order)
 	if err != nil {
@@ -488,18 +452,8 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 
 	// Add the order
 	if !order.IsExecuted() {
-
 		// Insert the order
-		if ob.orders.Set(order.id, order); false {
-
-			// Call the corresponding handler
-			e.handler.OnDeleteOrder(ob, order)
-
-			// Release the order
-			e.allocator.PutOrder(order)
-
-			return ErrOrderDuplicate
-		}
+		ob.orders.Set(order.id, order)
 
 		// Add the modified order into the order book
 		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(order), order)
@@ -511,7 +465,6 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 		}
 
 	} else {
-
 		// Call the corresponding handler
 		e.handler.OnDeleteOrder(ob, order)
 
@@ -534,9 +487,9 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 // Deleting orders
 ////////////////////////////////////////////////////////////////
 
-func (e *Engine) deleteOrder(ob *OrderBook, order *Order, inOB bool, recursive bool) error {
+func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error {
 	// Delete the order from the order book
-	if inOB {
+	if order.priceLevel != nil {
 		priceLevelUpdate, err := ob.deleteOrder(ob.treeForOrder(order), order)
 		if err != nil {
 			return err
@@ -547,14 +500,14 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, inOB bool, recursive b
 		}
 	}
 
-	// Call the corresponding handler
-	e.handler.OnDeleteOrder(ob, order)
-
 	// Erase the order
 	ob.orders.Delete(order.id)
 
 	// Release the order
 	e.allocator.PutOrder(order)
+
+	// Call the corresponding handler
+	e.handler.OnDeleteOrder(ob, order)
 
 	// Automatic order matching
 	if e.matching && !recursive {
@@ -568,15 +521,52 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, inOB bool, recursive b
 }
 
 // Checks linked OCO order and deletes if it exists
-func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, inOB, recursive bool) error {
+func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, recursive bool) error {
 	if order.linkedOrderID == 0 {
 		return nil
 	}
 
 	linkedOrder := ob.Order(order.linkedOrderID)
 	if linkedOrder != nil {
-		return e.deleteOrder(ob, linkedOrder, inOB, recursive)
+		return e.deleteOrder(ob, linkedOrder, recursive)
 	}
 
 	return nil
+}
+
+// calcExecutingQuantities calculate quantities for order pair
+func calcExecutingQuantities(maker *Order, taker *Order, lotStep Uint, quoteLotStep Uint) (qty Uint, quoteQty Uint, price Uint) {
+	price = maker.price
+
+	makerQuoteQty := maker.RestQuoteQuantity(price)
+	takerQuoteQty := taker.RestQuoteQuantity(price)
+
+	// Apply available
+	if maker.side == OrderSideBuy {
+		makerQuoteQty = Min(makerQuoteQty, maker.available)
+		// Protection from overflow
+		if taker.available.LessThan(takerQuoteQty) {
+			takerQuoteQty = taker.available.Mul(price).Div64(UintPrecision)
+		}
+	} else {
+		// Protection from overflow
+		if maker.available.LessThan(makerQuoteQty) {
+			makerQuoteQty = maker.available.Mul(price).Div64(UintPrecision)
+		}
+		takerQuoteQty = Min(takerQuoteQty, taker.available)
+	}
+
+	// Check by quote
+	if makerQuoteQty.GreaterThan(takerQuoteQty) {
+		qty, _ = takerQuoteQty.Mul64(UintPrecision).QuoRem(price)
+		quoteQty = takerQuoteQty
+	} else {
+		qty, _ = makerQuoteQty.Mul64(UintPrecision).QuoRem(price)
+		quoteQty = makerQuoteQty
+	}
+
+	qty = ApplySteps(qty, lotStep)
+	quoteQty = ApplySteps(quoteQty, quoteLotStep)
+
+	return
 }

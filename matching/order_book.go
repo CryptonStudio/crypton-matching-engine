@@ -528,16 +528,6 @@ func (ob *OrderBook) Debug() {
 
 	fmt.Printf("\nOrders\n")
 	for i := range orders {
-		o := orders[i]
-		fmt.Printf(
-			"Order id=%d side=%s, tif=%s, price=%s, restQty=%s, execQty=%s, qty=%s\n",
-			o.ID(),
-			o.Side().String(),
-			o.TimeInForce().String(),
-			o.Price().ToFloatString(),
-			o.RestQuantity().ToFloatString(),
-			o.ExecutedQuantity().ToFloatString(),
-			o.Quantity().ToFloatString(),
-		)
+		orders[i].Debug()
 	}
 }

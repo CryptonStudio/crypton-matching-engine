@@ -239,7 +239,6 @@ func (e *Engine) SetIndexPriceForOrderBook(symbolID uint32, price Uint, iterate 
 
 // AddOrder adds new order to the engine.
 func (e *Engine) AddOrder(order Order) error {
-
 	// Get the valid order book for the order
 	ob := e.OrderBook(order.symbolID)
 	if ob == nil {
@@ -251,8 +250,9 @@ func (e *Engine) AddOrder(order Order) error {
 		return err
 	}
 
-	task := func(ob *OrderBook) error {
+	order.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
 
+	task := func(ob *OrderBook) error {
 		// Add the corresponding order type
 		switch order.orderType {
 		case OrderTypeLimit:
@@ -288,6 +288,9 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 	if err := limitOrder.Validate(ob); err != nil {
 		return err
 	}
+
+	stopLimitOrder.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
+	limitOrder.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
 
 	// Link OCO orders to each other
 	stopLimitOrder.linkedOrderID = limitOrder.id
@@ -344,7 +347,7 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 				}
 
 				// Cancel limit order
-				err := e.deleteOrder(ob, limitOrderFromOB, true, false)
+				err := e.deleteOrder(ob, limitOrderFromOB, false)
 				if err != nil {
 					return fmt.Errorf("failed to delete order (id: %d): %w", limitOrderFromOB.ID(), err)
 				}
@@ -373,6 +376,9 @@ func (e *Engine) AddTPSL(TP Order, SL Order) error {
 	if err := SL.Validate(ob); err != nil {
 		return err
 	}
+
+	TP.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
+	SL.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
 
 	// Link OCO orders to each other
 	TP.linkedOrderID = SL.id
@@ -434,7 +440,7 @@ func (e *Engine) AddTPSL(TP Order, SL Order) error {
 				}
 
 				// Cancel tp linked order
-				err := e.deleteOrder(ob, tpFromOB, true, false)
+				err := e.deleteOrder(ob, tpFromOB, false)
 				if err != nil {
 					return fmt.Errorf("failed to delete order (id: %d): %w", tpFromOB.ID(), err)
 				}
@@ -449,7 +455,6 @@ func (e *Engine) AddTPSL(TP Order, SL Order) error {
 
 // ReduceOrder reduces the order by the given quantity.
 func (e *Engine) ReduceOrder(symbolID uint32, orderID uint64, quantity Uint) error {
-
 	// Get the valid order book for the order
 	ob := e.OrderBook(symbolID)
 	if ob == nil {
@@ -465,7 +470,7 @@ func (e *Engine) ReduceOrder(symbolID uint32, orderID uint64, quantity Uint) err
 		}
 
 		// Reduce the order
-		return e.reduceOrder(ob, order, quantity, true, false)
+		return e.reduceOrder(ob, order, quantity, false)
 	}
 
 	return e.performOrderBookTask(ob, task)
@@ -565,13 +570,13 @@ func (e *Engine) DeleteOrder(symbolID uint32, orderID uint64) error {
 		}
 
 		// Delete linked order if it exists
-		err := e.deleteLinkedOrder(ob, order, true, false)
+		err := e.deleteLinkedOrder(ob, order, false)
 		if err != nil {
 			return fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
 		}
 
 		// Delete the order
-		return e.deleteOrder(ob, order, true, false)
+		return e.deleteOrder(ob, order, false)
 	}
 
 	return e.performOrderBookTask(ob, task)
@@ -590,7 +595,6 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 	}
 
 	task := func(ob *OrderBook) (err error) {
-
 		// Get the order by given id
 		order := ob.Order(orderID)
 		if order == nil {
@@ -598,7 +602,7 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 		}
 
 		// Calculate the minimal possible order quantity to execute
-		orderQuantity := order.RestAvailableQuantity(order.price, ob.symbol.lotSizeLimits.Step)
+		orderQuantity := order.RestQuantity()
 		quantity = Min(quantity, orderQuantity)
 		quoteQuantity := quantity.Mul(order.price).Div64(UintPrecision)
 
@@ -688,7 +692,7 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 		}
 
 		// Calculate the minimal possible order quantity to execute
-		orderQuantity := order.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step)
+		orderQuantity := order.RestQuantity()
 		quantity = Min(quantity, orderQuantity)
 		quoteQuantity := quantity.Mul(price).Div64(UintPrecision)
 

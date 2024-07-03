@@ -2,44 +2,28 @@ package matching
 
 // Symbol contains basic info about a trading symbol.
 type Symbol struct {
-	id            uint32
-	name          string
-	priceLimits   Limits
-	lotSizeLimits Limits
-}
-
-// Limits contains just 3 numbers (min, max and step) and used for price and lot size limitations.
-type Limits struct {
-	Min  Uint
-	Max  Uint
-	Step Uint
+	id                 uint32
+	name               string
+	priceLimits        Limits
+	lotSizeLimits      Limits
+	quoteLotSizeLimits Limits
 }
 
 // NewSymbol creates new symbol with specified ID and name.
 func NewSymbol(id uint32, name string) Symbol {
-	return Symbol{
-		id:   id,
-		name: name,
-		priceLimits: Limits{
-			Min:  NewUint(1),
-			Max:  NewMaxUint(),
-			Step: NewUint(1),
-		},
-		lotSizeLimits: Limits{
-			Min:  NewUint(1),
-			Max:  NewMaxUint(),
-			Step: NewUint(1),
-		},
-	}
+	softLimits := GetSoftLimits()
+
+	return NewSymbolWithLimits(id, name, softLimits, softLimits)
 }
 
 // NewSymbolWithLimits creates new symbol with specified ID, name, price and lot size limits.
 func NewSymbolWithLimits(id uint32, name string, priceLimits Limits, lotSizeLimits Limits) Symbol {
 	return Symbol{
-		id:            id,
-		name:          name,
-		priceLimits:   priceLimits,
-		lotSizeLimits: lotSizeLimits,
+		id:                 id,
+		name:               name,
+		priceLimits:        priceLimits,
+		lotSizeLimits:      lotSizeLimits,
+		quoteLotSizeLimits: QuoteLotSizeLimits(priceLimits, lotSizeLimits),
 	}
 }
 
@@ -64,29 +48,5 @@ func (s Symbol) LotSizeLimits() Limits {
 }
 
 func (s Symbol) Valid() bool {
-	if s.priceLimits.Min.GreaterThanOrEqualTo(s.priceLimits.Max) {
-		return false
-	}
-
-	if s.priceLimits.Step.GreaterThanOrEqualTo(s.priceLimits.Max) {
-		return false
-	}
-
-	if s.lotSizeLimits.Min.GreaterThanOrEqualTo(s.lotSizeLimits.Max) {
-		return false
-	}
-
-	if s.lotSizeLimits.Step.GreaterThanOrEqualTo(s.lotSizeLimits.Max) {
-		return false
-	}
-
-	if s.priceLimits.Step.IsZero() {
-		return false
-	}
-
-	if s.lotSizeLimits.Step.IsZero() {
-		return false
-	}
-
-	return true
+	return s.priceLimits.Valid() && s.lotSizeLimits.Valid()
 }

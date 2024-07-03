@@ -89,9 +89,15 @@ func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Nod
 		case OrderTypeStop, OrderTypeTrailingStop:
 			// Activate the stop order
 			activated, err = e.activateStopOrder(ob, orderPtr.Value)
+			if err != nil {
+				return false, fmt.Errorf("failed to activate stop order: %w", err)
+			}
 		case OrderTypeStopLimit, OrderTypeTrailingStopLimit:
 			// Activate the stop-limit order
 			activated, err = e.activateStopLimitOrder(ob, orderPtr.Value)
+			if err != nil {
+				return false, fmt.Errorf("failed to activate stop-limit order: %w", err)
+			}
 		}
 	}
 
@@ -135,7 +141,7 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 
 func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, error) {
 	// Check and delete linked orders (OCO)
-	err := e.deleteLinkedOrder(ob, order, true, false)
+	err := e.deleteLinkedOrder(ob, order, false)
 	if err != nil {
 		return false, fmt.Errorf("failed to delete linked order: %w", err)
 	}
@@ -159,24 +165,21 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, erro
 		return false, fmt.Errorf("failed to match limit order: %w", err)
 	}
 
-	// Add a new limit order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
-	if !order.IsExecuted() && !order.IsIOC() && !order.IsFOK() {
+	if order.IsIOC() || order.IsFOK() {
+		e.handler.OnDeleteOrder(ob, order)
+	}
+
+	// Add remaining order in order book for GTC
+	if order.IsGTC() && !order.IsExecuted() {
+		// Set order to internal order storage
+		ob.orders.Set(order.id, order)
+
 		// Add the new limit order into the order book
 		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(order), order)
 		if err != nil {
-			return false, nil
+			return false, err
 		}
 		e.updatePriceLevel(ob, priceLevelUpdate)
-
-	} else {
-		// Call the corresponding handler
-		e.handler.OnDeleteOrder(ob, order)
-
-		// Erase the order
-		ob.orders.Delete(order.id)
-
-		// Release the order
-		e.allocator.PutOrder(order)
 	}
 
 	return true, nil

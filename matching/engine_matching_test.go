@@ -44,7 +44,59 @@ func TestMarketOrdersMatching(t *testing.T) {
 		}
 	}
 
-	t.Run("1-buy market order by amount(quantity)", func(t *testing.T) {
+	t.Run("buy market order by amount(quantity) in empty OB", func(t *testing.T) {
+		handler := mockmatching.NewMockHandler(ctrl)
+
+		engine := matching.NewEngine(handler, false)
+		engine.EnableMatching()
+
+		handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
+		ob, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true, Mark: true, Index: true})
+		require.NoError(t, err)
+
+		handler.EXPECT().OnAddOrder(ob, gomock.Any()).AnyTimes()
+		handler.EXPECT().OnDeleteOrder(ob, gomock.Any())
+
+		err = engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
+			matching.OrderSideBuy,
+			matching.OrderTimeInForceIOC,
+			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+
+		require.Equal(t, (*matching.Order)(nil), ob.Order(orderID)) // cancelled
+	})
+
+	t.Run("sell market order by amount(quantity) in empty OB", func(t *testing.T) {
+		handler := mockmatching.NewMockHandler(ctrl)
+
+		engine := matching.NewEngine(handler, false)
+		engine.EnableMatching()
+
+		handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
+		ob, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true, Mark: true, Index: true})
+		require.NoError(t, err)
+
+		handler.EXPECT().OnAddOrder(ob, gomock.Any()).AnyTimes()
+		handler.EXPECT().OnDeleteOrder(ob, gomock.Any())
+
+		err = engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
+			matching.OrderSideSell,
+			matching.OrderTimeInForceIOC,
+			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+
+		require.Equal(t, (*matching.Order)(nil), ob.Order(orderID)) // cancelled
+	})
+
+	t.Run("buy market order by amount(quantity), max slippage", func(t *testing.T) {
 		engine := matching.NewEngine(setupHandler(t), false)
 		engine.EnableMatching()
 
@@ -52,7 +104,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideBuy,
-			matching.OrderTimeInForceGTC,
+			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
 			matching.NewMaxUint(),
@@ -67,7 +119,53 @@ func TestMarketOrdersMatching(t *testing.T) {
 		)
 	})
 
-	t.Run("2-buy market order by total(quote), good locked", func(t *testing.T) {
+	t.Run("buy market order by amount(quantity), zero slippage", func(t *testing.T) {
+		engine := matching.NewEngine(setupHandler(t), false)
+		engine.EnableMatching()
+
+		setupMarketState(t, engine, symbolID)
+
+		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
+			matching.OrderSideBuy,
+			matching.OrderTimeInForceIOC,
+			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
+			matching.NewZeroUint(),
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+
+		ob := engine.OrderBook(symbolID)
+		require.Equal(t, (*matching.Order)(nil), ob.Order(3)) // #3 is full matched
+		require.True(t,
+			ob.Order(4).ExecutedQuantity().IsZero(), // not executed
+		)
+	})
+
+	t.Run("buy market order by amount(quantity), easy slippage", func(t *testing.T) {
+		engine := matching.NewEngine(setupHandler(t), false)
+		engine.EnableMatching()
+
+		setupMarketState(t, engine, symbolID)
+
+		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
+			matching.OrderSideBuy,
+			matching.OrderTimeInForceIOC,
+			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
+			matching.NewZeroUint(),
+			matching.NewUint(20).Mul64(matching.UintPrecision),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+
+		ob := engine.OrderBook(symbolID)
+		require.Equal(t, (*matching.Order)(nil), ob.Order(3)) // #3 is full matched
+		require.True(t,
+			ob.Order(4).ExecutedQuantity().Equals(matching.NewUint(matching.UintPrecision).Div64(2)), // #4 executed amount is 0.5
+		)
+	})
+
+	t.Run("buy market order by total(quote), good locked", func(t *testing.T) {
 		engine := matching.NewEngine(setupHandler(t), false)
 		engine.EnableMatching()
 		engine.Start()
@@ -78,7 +176,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideBuy,
-			matching.OrderTimeInForceGTC,
+			matching.OrderTimeInForceIOC,
 			matching.NewZeroUint(),
 			matching.NewUint(40).Mul64(matching.UintPrecision),
 			matching.NewMaxUint(),
@@ -98,7 +196,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 		)
 	})
 
-	t.Run("2-buy market order by total(quote), overlocked", func(t *testing.T) {
+	t.Run("buy market order by total(quote), overlocked", func(t *testing.T) {
 		engine := matching.NewEngine(setupHandler(t), false)
 		engine.EnableMatching()
 		engine.Start()
@@ -109,7 +207,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideBuy,
-			matching.OrderTimeInForceGTC,
+			matching.OrderTimeInForceIOC,
 			matching.NewZeroUint(),
 			matching.NewUint(40).Mul64(matching.UintPrecision),
 			matching.NewMaxUint(),
@@ -129,7 +227,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 		)
 	})
 
-	t.Run("3-sell market order by amount(quantity)", func(t *testing.T) {
+	t.Run("sell market order by amount(quantity), max slippage", func(t *testing.T) {
 		engine := matching.NewEngine(setupHandler(t), false)
 		engine.EnableMatching()
 
@@ -137,7 +235,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideSell,
-			matching.OrderTimeInForceGTC,
+			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
 			matching.NewMaxUint(),
@@ -149,10 +247,11 @@ func TestMarketOrdersMatching(t *testing.T) {
 		require.Equal(t, (*matching.Order)(nil), ob.Order(2)) // #2 is full matched
 		require.True(t,
 			ob.Order(1).ExecutedQuantity().Equals(matching.NewUint(matching.UintPrecision).Div64(2)), // #1 executed amount is 0.5
+			fmt.Sprintf("have: %s, want: %s", ob.Order(1).ExecutedQuantity().ToFloatString(), matching.NewUint(matching.UintPrecision).Div64(2)),
 		)
 	})
 
-	t.Run("4-sell market order by total(quote)", func(t *testing.T) {
+	t.Run("sell market order by amount(quantity), zero slippage", func(t *testing.T) {
 		engine := matching.NewEngine(setupHandler(t), false)
 		engine.EnableMatching()
 
@@ -160,7 +259,57 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideSell,
-			matching.OrderTimeInForceGTC,
+			matching.OrderTimeInForceIOC,
+			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
+			matching.NewZeroUint(),
+			matching.NewZeroUint(),
+			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2),
+		))
+		require.NoError(t, err)
+
+		ob := engine.OrderBook(symbolID)
+		require.Equal(t, (*matching.Order)(nil), ob.Order(2)) // #2 is full matched
+		require.True(t,
+			ob.Order(1).ExecutedQuantity().IsZero(), // #1 no executed
+		)
+	})
+
+	t.Run("sell market order by amount(quantity), easy slippage", func(t *testing.T) {
+		engine := matching.NewEngine(setupHandler(t), false)
+		engine.EnableMatching()
+
+		setupMarketState(t, engine, symbolID)
+
+		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
+			matching.OrderSideSell,
+			matching.OrderTimeInForceIOC,
+			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
+			matching.NewZeroUint(),
+			matching.NewUint(20).Mul64(matching.UintPrecision),
+			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2),
+		))
+		require.NoError(t, err)
+
+		ob := engine.OrderBook(symbolID)
+		require.Equal(t, (*matching.Order)(nil), ob.Order(2)) // #2 is full matched
+		require.True(t,
+			ob.Order(1).ExecutedQuantity().Equals(matching.NewUint(matching.UintPrecision).Div64(2)), // #1 executed amount is 0.5
+			fmt.Sprintf(
+				"have: %s, want: %s", ob.Order(1).ExecutedQuantity().ToFloatString(),
+				matching.NewUint(matching.UintPrecision).Div64(2),
+			),
+		)
+	})
+
+	t.Run("sell market order by total(quote)", func(t *testing.T) {
+		engine := matching.NewEngine(setupHandler(t), false)
+		engine.EnableMatching()
+
+		setupMarketState(t, engine, symbolID)
+
+		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
+			matching.OrderSideSell,
+			matching.OrderTimeInForceIOC,
 			matching.NewZeroUint(),
 			matching.NewUint(25).Mul64(matching.UintPrecision),
 			matching.NewMaxUint(),
@@ -1321,8 +1470,8 @@ func TestOCOOrders(t *testing.T) {
 			}).Times(2)
 		handler.EXPECT().OnExecuteTrade(ob, gomock.Any(), gomock.Any(), secondTrade.limitPrice, secondTrade.quantity).Do(
 			func(orderBook *matching.OrderBook, makerOrder *matching.Order, takerOrder *matching.Order, price matching.Uint, quantity matching.Uint) {
-				makerOrderExecuted := makerOrder.RestAvailableQuantity(price, orderBook.Symbol().LotSizeLimits().Step).Equals(quantity)
-				takerOrderExecuted := takerOrder.RestAvailableQuantity(price, orderBook.Symbol().LotSizeLimits().Step).Equals(quantity)
+				makerOrderExecuted := makerOrder.RestQuantity().Equals(quantity)
+				takerOrderExecuted := takerOrder.RestQuantity().Equals(quantity)
 
 				t.Logf("trade qty: %s,maker executed: %t, taker executed: %t",
 					quantity.ToFloatString(),
@@ -2393,53 +2542,53 @@ func testAllOrders(t *testing.T, a []byte) {
 
 	var orders []matching.Order
 
-	for i := 0; i < len(a); i += 6 {
-		side := matching.OrderSide(a[i])
-		if !(side == matching.OrderSideBuy || side == matching.OrderSideSell) {
-			return
-		}
-		orderType := matching.OrderType(a[i+1])
-		if !(orderType == matching.OrderTypeLimit || orderType == matching.OrderTypeStopLimit ||
-			orderType == matching.OrderTypeMarket || orderType == matching.OrderTypeStop) {
-			return
-		}
-		tif := matching.OrderTimeInForce(a[i+2])
-		if !(tif == matching.OrderTimeInForceGTC || tif == matching.OrderTimeInForceIOC ||
-			tif == matching.OrderTimeInForceFOK) {
-			return
-		}
-		// no zero quantity
-		if a[i+4] == 0 {
-			return
-		}
-		price := matching.NewUint(uint64(a[i+3])).Mul64(matching.UintPrecision).Div64(10)
-		stopPrice := matching.NewUint(uint64(a[i+5])).Mul64(matching.UintPrecision).Div64(10)
-		quantity := matching.NewUint(uint64(a[i+4])).Mul64(matching.UintPrecision).Div64(10)
-		restLocked := quantity
-		if side == matching.OrderSideBuy && (orderType == matching.OrderTypeLimit || orderType == matching.OrderTypeStopLimit) {
-			restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
-		}
+	for i := range symbolIDs {
+		for j := 0; j < len(a); j += 6 {
+			side := matching.OrderSide(a[j])
+			if !(side == matching.OrderSideBuy || side == matching.OrderSideSell) {
+				return
+			}
+			orderType := matching.OrderType(a[j+1])
+			if !(orderType == matching.OrderTypeLimit || orderType == matching.OrderTypeStopLimit ||
+				orderType == matching.OrderTypeMarket || orderType == matching.OrderTypeStop) {
+				return
+			}
+			tif := matching.OrderTimeInForce(a[j+2])
+			if !(tif == matching.OrderTimeInForceGTC || tif == matching.OrderTimeInForceIOC ||
+				tif == matching.OrderTimeInForceFOK) {
+				return
+			}
+			// no zero quantity
+			if a[j+4] == 0 {
+				return
+			}
+			price := matching.NewUint(uint64(a[j+3])).Mul64(matching.UintPrecision).Div64(10)
+			stopPrice := matching.NewUint(uint64(a[j+5])).Mul64(matching.UintPrecision).Div64(10)
+			quantity := matching.NewUint(uint64(a[j+4])).Mul64(matching.UintPrecision).Div64(10)
+			restLocked := quantity
+			if side == matching.OrderSideBuy && (orderType == matching.OrderTypeLimit || orderType == matching.OrderTypeStopLimit) {
+				restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
+			}
 
-		for j := range symbolIDs {
 			var o matching.Order
 			switch orderType {
 			case matching.OrderTypeLimit:
 				o = matching.NewLimitOrder(
-					symbolIDs[j], uint64(j*len(a)+i+1), side, tif, price, quantity, matching.NewZeroUint(), restLocked,
+					symbolIDs[i], uint64(i*len(a)+j+1), side, tif, price, quantity, matching.NewZeroUint(), restLocked,
 				)
 			case matching.OrderTypeStopLimit:
 				o = matching.NewStopLimitOrder(
-					symbolIDs[j], uint64(j*len(a)+i+1), side, tif, price, matching.StopPriceModeMarket,
+					symbolIDs[i], uint64(i*len(a)+j+1), side, tif, price, matching.StopPriceModeMarket,
 					stopPrice, quantity, matching.NewZeroUint(), restLocked,
 				)
 			case matching.OrderTypeMarket:
 				o = matching.NewMarketOrder(
-					symbolIDs[j], uint64(j*len(a)+i+1), side, matching.OrderTimeInForceIOC, quantity,
+					symbolIDs[i], uint64(i*len(a)+j+1), side, matching.OrderTimeInForceIOC, quantity,
 					matching.NewZeroUint(), price, matching.NewMaxUint(),
 				)
 			case matching.OrderTypeStop:
 				o = matching.NewStopOrder(
-					symbolIDs[j], uint64(j*len(a)+i+1), side, matching.OrderTimeInForceIOC,
+					symbolIDs[i], uint64(i*len(a)+j+1), side, matching.OrderTimeInForceIOC,
 					matching.StopPriceModeMarket, stopPrice, quantity,
 					matching.NewZeroUint(), price, matching.NewMaxUint(),
 				)
@@ -2505,14 +2654,16 @@ func testAllOrders(t *testing.T, a []byte) {
 	}()
 
 	for i := range orders {
-		fmt.Printf("id=%d side=%s, type=%s, tif=%s, price=%s, quantity=%s, stopPrice=%s\n",
+		fmt.Printf("id=%d symId=%d type=%s side=%s, tif=%s, price=%s, quantity=%s availableQty=%s restQty=%s\n",
 			orders[i].ID(),
-			orders[i].Side().String(),
+			orders[i].SymbolID(),
 			orders[i].Type().String(),
+			orders[i].Side().String(),
 			orders[i].TimeInForce().String(),
 			orders[i].Price().ToFloatString(),
 			orders[i].Quantity().ToFloatString(),
-			orders[i].StopPrice().ToFloatString(),
+			orders[i].Available().ToFloatString(),
+			orders[i].RestQuantity().ToFloatString(),
 		)
 	}
 

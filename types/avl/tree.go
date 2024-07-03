@@ -155,8 +155,11 @@ func (t *Tree[K, V]) MostRight() *Node[K, V] {
 func (t *Tree[K, V]) Clear() {
 	if t.root != nil {
 		t.root.iteratePostOrder(func(node *Node[K, V]) bool {
-			*node = Node[K, V]{}
-			t.pool.Put(node)
+			if t.pool != nil {
+				*node = Node[K, V]{}
+				t.pool.Put(node)
+			}
+
 			return false
 		})
 	}

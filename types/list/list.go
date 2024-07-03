@@ -166,6 +166,7 @@ func (l *List[T]) Clean() {
 		for e := l.Front(); e != nil; {
 			next := e.next
 			// Clean up removed element to avoid memory leaks
+			// don't need to clear e.Value, it always changed when adding.
 			e.next, e.prev, e.list = nil, nil, nil
 			l.pool.Put(e)
 			e = next
@@ -173,6 +174,7 @@ func (l *List[T]) Clean() {
 	}
 	l.root.next = &l.root
 	l.root.prev = &l.root
+
 	l.len = 0
 }
 
@@ -228,6 +230,7 @@ func (l *List[T]) remove(e *Element[T]) {
 	l.len--
 
 	// Clean up removed element to avoid memory leaks
+	// don't need to clear e.Value, it always changed when adding.
 	e.next, e.prev, e.list = nil, nil, nil
 
 	// Release list entry if pool is used

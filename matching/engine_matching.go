@@ -14,7 +14,6 @@ import (
 func (e *Engine) match(ob *OrderBook) error {
 	// Matching loop
 	for {
-		// Check the arbitrage bid/ask prices
 		for {
 			// Find the best bid/ask price level
 			topBid, topAsk := ob.TopBid(), ob.TopAsk()
@@ -37,70 +36,27 @@ func (e *Engine) match(ob *OrderBook) error {
 				}
 
 				// Get the execution price and quantity
-				var price Uint
-				if executingOrder.id < reducingOrder.id {
-					price = executingOrder.price
-				} else {
-					price = reducingOrder.price
-				}
-				quantity, quoteQuantity := executingOrder.RestAvailableQuantities(price, ob.symbol.lotSizeLimits.Step)
-
-				// Ensure both orders are not executed already
-				if orderBid.Value.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step).IsZero() {
-					order := orderBid.Value
-					orderBid = orderBid.Next()
-					err := e.deleteOrder(ob, order, true, true)
-					if err != nil {
-						return fmt.Errorf("failed to delete order (id: %d): %w", order.ID(), err)
-					}
-
-					continue
-				}
-				if orderAsk.Value.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step).IsZero() {
-					order := orderAsk.Value
-					orderAsk = orderAsk.Next()
-					err := e.deleteOrder(ob, order, true, true)
-					if err != nil {
-						return fmt.Errorf("failed to delete order (id: %d): %w", order.ID(), err)
-					}
-
-					continue
-				}
-
-				// Check and delete linked orders
-				err := e.deleteLinkedOrder(ob, executingOrder, true, false)
-				if err != nil {
-					return fmt.Errorf("failed to delete linked order (id: %d): %w", executingOrder.ID(), err)
-				}
-
-				err = e.deleteLinkedOrder(ob, reducingOrder, true, false)
-				if err != nil {
-					return fmt.Errorf("failed to delete linked order (id: %d): %w", reducingOrder.ID(), err)
-				}
+				lotStep, quoteLotStep := ob.symbol.lotSizeLimits.Step, ob.symbol.quoteLotSizeLimits.Step
+				// Quantity can't be zero, because here are only limit orders
+				quantity, quoteQuantity, price := calcExecutingQuantities(executingOrder, reducingOrder, lotStep, quoteLotStep)
 
 				// Call the corresponding handlers
 				e.handler.OnExecuteOrder(ob, executingOrder, price, quantity)
 				e.handler.OnExecuteOrder(ob, reducingOrder, price, quantity)
+				e.handler.OnExecuteTrade(ob, executingOrder, reducingOrder, price, quantity)
 
-				if executingOrder.id < reducingOrder.id {
-					e.handler.OnExecuteTrade(ob, executingOrder, reducingOrder, price, quantity)
-				} else {
-					e.handler.OnExecuteTrade(ob, reducingOrder, executingOrder, price, quantity)
+				// Execute orders
+				err := e.executeOrder(ob, reducingOrder, quantity, quoteQuantity)
+				if err != nil {
+					return fmt.Errorf("failed to execute order (id: %d): %w", reducingOrder.ID(), err)
+				}
+				err = e.executeOrder(ob, executingOrder, quantity, quoteQuantity)
+				if err != nil {
+					return fmt.Errorf("failed to execute order (id: %d): %w", executingOrder.ID(), err)
 				}
 
 				// Update common market price
 				ob.updateMarketPrice(price)
-
-				// Decrease the order available quantity
-				if executingOrder.IsBuy() {
-					executingOrder.available = executingOrder.available.Sub(quoteQuantity)
-				} else {
-					executingOrder.available = executingOrder.available.Sub(quantity)
-				}
-
-				// Increase the order executed quantity
-				executingOrder.executedQuantity = executingOrder.executedQuantity.Add(quantity)
-				executingOrder.executedQuoteQuantity = executingOrder.executedQuoteQuantity.Add(quoteQuantity)
 
 				// Move to the next orders pair at the same price level
 				if !swapped {
@@ -109,36 +65,9 @@ func (e *Engine) match(ob *OrderBook) error {
 					orderAsk = orderAsk.Next()
 				}
 
-				// Delete the executing order from the order book
-				err = e.deleteOrder(ob, executingOrder, true, true)
-				if err != nil {
-					return fmt.Errorf("failed to delete order (id: %d): %w", executingOrder.ID(), err)
-				}
-
-				// Decrease the order available quantity
-				if reducingOrder.IsBuy() {
-					reducingOrder.available = reducingOrder.available.Sub(quoteQuantity)
-				} else {
-					reducingOrder.available = reducingOrder.available.Sub(quantity)
-				}
-
-				// Increase the order executed quantity
-				reducingOrder.executedQuantity = reducingOrder.executedQuantity.Add(quantity)
-				reducingOrder.executedQuoteQuantity = reducingOrder.executedQuoteQuantity.Add(quoteQuantity)
-
-				// Move to the next orders pair at the same price level
-				if reducingOrder.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step).Equals(quantity) {
-					if !swapped {
-						orderAsk = orderAsk.Next()
-					} else {
-						orderBid = orderBid.Next()
-					}
-				}
-
-				// Reduce the remaining order in the order book
-				err = e.reduceOrder(ob, reducingOrder, quantity, true, true)
-				if err != nil {
-					return fmt.Errorf("failed to reduce order (id: %d): %w", reducingOrder.ID(), err)
+				// Move to the next orders pair at the same price level (equal qty)
+				if reducingOrder.IsExecuted() {
+					orderAsk = orderAsk.Next()
 				}
 			}
 
@@ -187,8 +116,6 @@ func (e *Engine) matchLimitOrder(ob *OrderBook, order *Order) error {
 
 // matchMarketOrder matches given market order in given order book.
 func (e *Engine) matchMarketOrder(ob *OrderBook, order *Order) error {
-
-	// Calculate acceptable maker order price with optional slippage value
 	var topPrice Uint
 	if order.IsBuy() {
 		// Check if there is nothing to buy
@@ -197,8 +124,9 @@ func (e *Engine) matchMarketOrder(ob *OrderBook, order *Order) error {
 		}
 
 		topPrice = ob.TopAsk().Value().Price()
-		if topPrice.GreaterThan(NewMaxUint().Sub(order.marketSlippage)) {
-			order.price = NewMaxUint()
+		maxPrice := ob.symbol.priceLimits.Max
+		if topPrice.GreaterThan(maxPrice.Sub(order.marketSlippage)) {
+			order.price = maxPrice
 		} else {
 			order.price = topPrice.Add(order.marketSlippage)
 		}
@@ -217,7 +145,7 @@ func (e *Engine) matchMarketOrder(ob *OrderBook, order *Order) error {
 	}
 
 	// Fill rest quantity with correct value
-	if !order.quoteQuantity.IsZero() {
+	if order.marketQuoteMode {
 		order.restQuantity, _ = order.quoteQuantity.Mul64(UintPrecision).QuoRem(topPrice)
 	}
 
@@ -232,7 +160,6 @@ func (e *Engine) matchMarketOrder(ob *OrderBook, order *Order) error {
 
 // matchOrder matches given order in given order book.
 func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
-
 	// Start the matching from the top of the book
 	for {
 		// Determine the best bid/ask price level
@@ -246,6 +173,9 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			return nil
 		}
 
+		// Define steps
+		lotStep, quoteLotStep := ob.symbol.lotSizeLimits.Step, ob.symbol.quoteLotSizeLimits.Step
+
 		// Check the arbitrage bid/ask prices
 		if order.IsBuy() {
 			if order.price.LessThan(priceLevel.Value().Price()) {
@@ -258,16 +188,7 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 		}
 
 		// Special case for 'Fill-Or-Kill'
-		if order.IsFOK() {
-			canExecuteTakerChain := e.canExecuteChain(order.quantity, priceLevel)
-
-			if canExecuteTakerChain {
-				err := e.executeTakerChain(ob, order, priceLevel)
-				if err != nil {
-					return fmt.Errorf("failed to execute taker chain: %w", err)
-				}
-			}
-
+		if order.IsFOK() && !e.canExecuteChain(order, priceLevel, lotStep, quoteLotStep) {
 			return nil
 		}
 
@@ -277,80 +198,29 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			executingOrder := orderPtr.Value
 
 			// Get the execution price and quantity
-			price := executingOrder.price
-			executingQuantity := executingOrder.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step)
-			orderQuantity := order.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step)
-			quantity := Min(executingQuantity, orderQuantity)
-			quoteQuantity := quantity.Mul(price).Div64(UintPrecision)
-
-			// Ensure both orders are not executed already
-			// TODO: Investigate the reason of occurring such cases!
-			if executingQuantity.IsZero() {
-				err := e.deleteOrder(ob, executingOrder, true, true)
-				if err != nil {
-					return fmt.Errorf("failed to delete order (id: %d): %w", executingOrder.ID(), err)
-				}
-
-				orderPtr = orderPtrNext
-				continue
-			}
-			if orderQuantity.IsZero() {
+			quantity, quoteQuantity, price := calcExecutingQuantities(executingOrder, order, lotStep, quoteLotStep)
+			// Check because some market orders can have not enough available qty
+			if quantity.IsZero() {
 				return nil
 			}
 
-			// Check and delete linked orders
-			err := e.deleteLinkedOrder(ob, executingOrder, true, false)
-			if err != nil {
-				return fmt.Errorf("failed to delete linked order (id: %d): %w", executingOrder.ID(), err)
-			}
-
-			err = e.deleteLinkedOrder(ob, order, true, false)
-			if err != nil {
-				return fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
-			}
-
-			// Call the corresponding handlers
-			e.handler.OnExecuteOrder(ob, executingOrder, price, quantity)
+			// Call the trade handlers
 			e.handler.OnExecuteOrder(ob, order, price, quantity)
-			if executingOrder.id < order.id {
-				e.handler.OnExecuteTrade(ob, executingOrder, order, price, quantity)
-			} else {
-				e.handler.OnExecuteTrade(ob, order, executingOrder, price, quantity)
+			e.handler.OnExecuteOrder(ob, executingOrder, price, quantity)
+			e.handler.OnExecuteTrade(ob, executingOrder, order, price, quantity)
+
+			// Execute orders
+			err := e.executeOrder(ob, order, quantity, quoteQuantity)
+			if err != nil {
+				return fmt.Errorf("failed to execute order (id: %d): %w", order.ID(), err)
+			}
+			err = e.executeOrder(ob, executingOrder, quantity, quoteQuantity)
+			if err != nil {
+				return fmt.Errorf("failed to execute order (id: %d): %w", executingOrder.ID(), err)
 			}
 
 			// Update common market price
 			ob.updateMarketPrice(price)
-
-			// Decrease the order available quantity
-			if executingOrder.IsBuy() {
-				executingOrder.available = executingOrder.available.Sub(quoteQuantity)
-			} else {
-				executingOrder.available = executingOrder.available.Sub(quantity)
-			}
-
-			// Increase the order executed quantity
-			executingOrder.executedQuantity = executingOrder.executedQuantity.Add(quantity)
-			executingOrder.executedQuoteQuantity = executingOrder.executedQuoteQuantity.Add(quoteQuantity)
-
-			// Reduce the executing order in the order book
-			err = e.reduceOrder(ob, executingOrder, quantity, true, true)
-			if err != nil {
-				return fmt.Errorf("failed to reduce order (id: %d): %w", executingOrder.ID(), err)
-			}
-
-			// Decrease the order available quantity
-			if order.IsBuy() {
-				order.available = order.available.Sub(quoteQuantity)
-			} else {
-				order.available = order.available.Sub(quantity)
-			}
-
-			// Increase the order executed quantity
-			order.executedQuantity = order.executedQuantity.Add(quantity)
-			order.executedQuoteQuantity = order.executedQuoteQuantity.Add(quoteQuantity)
-
-			// Reduce the order leaves quantity
-			order.restQuantity = orderQuantity.Sub(quantity)
 
 			// Exit the loop if the order is executed
 			if order.IsExecuted() {
@@ -369,17 +239,21 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 
 // canExecuteChain have to be used for FOK orders to check if full execution is possible
 func (e *Engine) canExecuteChain(
-	required Uint,
+	reducingOrder *Order,
 	executing *avl.Node[Uint, *PriceLevelL3],
+	lotStep Uint,
+	quoteLotStep Uint,
 ) bool {
+	required := reducingOrder.quantity
+
 	// Travel through price levels
 	for executing != nil {
 		// Take first order of price level
 		executingOrder := executing.Value().queue.Front()
 
 		// Travel through orders at current price levels
-		for executingOrder != nil {
-			quantity := executingOrder.Value.restQuantity
+		for executingOrder != nil && executingOrder.Value != nil {
+			quantity, _, _ := calcExecutingQuantities(executingOrder.Value, reducingOrder, lotStep, quoteLotStep)
 
 			if required.LessThanOrEqualTo(quantity) {
 				return true
@@ -396,89 +270,4 @@ func (e *Engine) canExecuteChain(
 
 	// Matching is not available
 	return false
-}
-
-// executeTakerChain have to be used for FOK orders to be fully executed
-func (e *Engine) executeTakerChain(
-	ob *OrderBook,
-	reducingOrder *Order,
-	node *avl.Node[Uint, *PriceLevelL3],
-) error {
-	price := reducingOrder.price
-	volume := reducingOrder.quantity
-	// We can update market price one time because all trades will be at the same price
-	ob.updateMarketPrice(price)
-
-	// Execute all orders in the matching chain
-	for node != nil {
-		nodeNext := node.NextRight()
-
-		// Execute all orders in the current price level
-		for orderPtr := node.Value().queue.Front(); orderPtr != nil; {
-			orderPtrNext := orderPtr.Next()
-			order := orderPtr.Value
-
-			quantity, quoteQuantity := order.RestAvailableQuantities(price, ob.symbol.lotSizeLimits.Step)
-
-			if quantity.GreaterThanOrEqualTo(volume) {
-				// calc quote volume
-				quoteVolume := volume.Mul(price).Div64(UintPrecision)
-
-				// executing order only reduced
-				order.executedQuantity = order.executedQuantity.Add(volume)
-				order.executedQuoteQuantity = order.executedQuoteQuantity.Add(quoteVolume)
-				e.handler.OnExecuteOrder(ob, order, price, volume)
-				err := e.reduceOrder(ob, order, volume, true, true)
-				if err != nil {
-					return fmt.Errorf("failed to reduce order (id: %d): %w", order.ID(), err)
-				}
-
-				// reducing order (FOK) is now fully executed
-				reducingOrder.executedQuantity = reducingOrder.executedQuantity.Add(volume)
-				reducingOrder.executedQuoteQuantity = reducingOrder.executedQuoteQuantity.Add(quoteVolume)
-				e.handler.OnExecuteOrder(ob, reducingOrder, price, volume)
-				err = e.deleteOrder(ob, reducingOrder, false, true)
-				if err != nil {
-					return fmt.Errorf("failed to delete order (id: %d): %w", order.ID(), err)
-				}
-
-				// NOTE: FOK order is taker
-				e.handler.OnExecuteTrade(ob, order, reducingOrder, price, volume)
-
-				return nil
-			}
-
-			// Reduce the execution chain
-			volume = volume.Sub(quantity)
-
-			// fully executed executing order
-			order.executedQuantity = order.executedQuantity.Add(quantity)
-			order.executedQuoteQuantity = order.executedQuoteQuantity.Add(quoteQuantity)
-			e.handler.OnExecuteOrder(ob, order, price, quantity)
-			err := e.deleteOrder(ob, order, true, true)
-			if err != nil {
-				return fmt.Errorf("failed to delete order (id: %d): %w", order.ID(), err)
-			}
-
-			// reduce reducing order
-			reducingOrder.executedQuantity = reducingOrder.executedQuantity.Add(quantity)
-			reducingOrder.executedQuoteQuantity = reducingOrder.executedQuoteQuantity.Add(quantity)
-			e.handler.OnExecuteOrder(ob, reducingOrder, price, quantity)
-			err = e.reduceOrder(ob, reducingOrder, quantity, false, true)
-			if err != nil {
-				return fmt.Errorf("failed to reduce order (id: %d): %w", order.ID(), err)
-			}
-
-			// NOTE: FOK order is taker
-			e.handler.OnExecuteTrade(ob, order, reducingOrder, price, quantity)
-
-			// Move to the next order to execute at the same price level
-			orderPtr = orderPtrNext
-		}
-
-		// Switch to the next price level
-		node = nodeNext
-	}
-
-	return nil
 }

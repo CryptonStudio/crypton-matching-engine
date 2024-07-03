@@ -17,7 +17,6 @@ type Allocator struct {
 	orders sync.Pool
 
 	// Pools used by containers
-	orderNodes         sync.Pool // used by avl.Tree[uint64, *Order[]]
 	priceLevelNodes    sync.Pool // used by avl.Tree[Uint, *PriceLevelL3]
 	orderQueueElements sync.Pool // used by list.List
 }
@@ -34,9 +33,6 @@ func NewAllocator() *Allocator {
 		return new(Order)
 	}}
 	// Pools used by containers
-	a.orderNodes = sync.Pool{New: func() any {
-		return new(avl.Node[uint64, *Order])
-	}}
 	a.priceLevelNodes = sync.Pool{New: func() any {
 		return new(avl.Node[Uint, *PriceLevelL3])
 	}}
@@ -52,8 +48,9 @@ func NewAllocator() *Allocator {
 
 // GetPriceLevel allocates PriceLevelL3 instance.
 func (a *Allocator) GetPriceLevel() *PriceLevelL3 {
+	priceLevel := a.priceLevels.Get().(*PriceLevelL3)
 	// Get from the pool
-	return a.priceLevels.Get().(*PriceLevelL3)
+	return priceLevel
 }
 
 // PutPriceLevel releases PriceLevelL3 instance.
@@ -70,14 +67,15 @@ func (a *Allocator) PutPriceLevel(priceLevel *PriceLevelL3) {
 
 // GetOrder allocates Order instance.
 func (a *Allocator) GetOrder() *Order {
+	order := a.orders.Get().(*Order)
 	// Get from the pool
-	return a.orders.Get().(*Order)
+	return order
 }
 
 // PutOrder releases Order instance.
 func (a *Allocator) PutOrder(order *Order) {
 	// Clean up the instance before releasing
-	*order = Order{}
+	order.Clean()
 	// Put back to the pool
 	a.orders.Put(order)
 }

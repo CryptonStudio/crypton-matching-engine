@@ -285,7 +285,7 @@ func (o *Order) AddExecutedQuoteQuantity(v Uint) {
 
 // IsExecuted returns true if the order is completely executed.
 func (o *Order) IsExecuted() bool {
-	return o.restQuantity.IsZero() || o.available.IsZero()
+	return o.restQuantity.IsZero()
 }
 
 // VisibleQuantity returns order remaining visible quantity.
@@ -349,23 +349,6 @@ func (o *Order) Validate(ob *OrderBook) error {
 		}
 	}
 
-	// Validate locked
-	// All combinations of orders need exact minimum locked amount,
-	// except Buy Market Base and Sell Market Quote (will be executed for locked amount)
-	var needLocked Uint
-	if o.side == OrderSideSell && !o.quantity.IsZero() {
-		needLocked = o.quantity
-	}
-	if o.side == OrderSideBuy && !o.quantity.IsZero() && !o.price.IsZero() {
-		needLocked = o.quantity.Mul(o.price).Div64(UintPrecision)
-	}
-	if o.side == OrderSideBuy && !o.quoteQuantity.IsZero() {
-		needLocked = o.quoteQuantity
-	}
-	if o.available.LessThan(needLocked) {
-		return ErrNotEnoughLockedAmount
-	}
-
 	// Validate stop price (if necessary)
 	switch o.orderType {
 	case OrderTypeStop, OrderTypeStopLimit, OrderTypeTrailingStop, OrderTypeTrailingStopLimit:
@@ -394,6 +377,36 @@ func (o *Order) Validate(ob *OrderBook) error {
 		if !rem.IsZero() {
 			return ErrInvalidOrderQuantity
 		}
+	}
+
+	return nil
+}
+
+// CheckLocked checks locked quantity,
+// all combinations of orders need exact minimum locked amount,
+// except Buy Market Base and Sell Market Quote (will be executed for locked amount)
+// also some orders have already locked, e.g. when they have linked order.
+func (o *Order) CheckLocked(order *Order, alreadyLocked Uint) error {
+	var needLocked Uint
+	if o.side == OrderSideSell && !o.quantity.IsZero() {
+		needLocked = o.quantity
+	}
+	if o.side == OrderSideBuy && !o.quantity.IsZero() && !o.price.IsZero() {
+		needLocked = o.quantity.Mul(o.price).Div64(UintPrecision)
+	}
+	if o.side == OrderSideBuy && !o.quoteQuantity.IsZero() {
+		needLocked = o.quoteQuantity
+	}
+
+	// Protect from underflow
+	if needLocked.LessThanOrEqualTo(alreadyLocked) {
+		return nil
+	}
+
+	needLocked = needLocked.Sub(alreadyLocked)
+
+	if o.available.LessThan(needLocked) {
+		return ErrNotEnoughLockedAmount
 	}
 
 	return nil

@@ -250,6 +250,11 @@ func (e *Engine) AddOrder(order Order) error {
 		return err
 	}
 
+	// Validate order parameters
+	if err := order.CheckLocked(&order, NewZeroUint()); err != nil {
+		return err
+	}
+
 	order.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
 
 	task := func(ob *OrderBook) error {
@@ -286,6 +291,14 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 		return err
 	}
 	if err := limitOrder.Validate(ob); err != nil {
+		return err
+	}
+
+	// Check locked
+	if err := stopLimitOrder.CheckLocked(&stopLimitOrder, limitOrder.available); err != nil {
+		return err
+	}
+	if err := limitOrder.CheckLocked(&limitOrder, stopLimitOrder.available); err != nil {
 		return err
 	}
 
@@ -374,6 +387,14 @@ func (e *Engine) AddTPSL(TP Order, SL Order) error {
 		return err
 	}
 	if err := SL.Validate(ob); err != nil {
+		return err
+	}
+
+	// Check locked
+	if err := TP.CheckLocked(&TP, SL.available); err != nil {
+		return err
+	}
+	if err := SL.CheckLocked(&SL, TP.available); err != nil {
 		return err
 	}
 

@@ -885,7 +885,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(15).Mul64(matching.UintPrecision), // price 15
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.NoError(t, err)
@@ -932,7 +932,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1645,7 +1645,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.ErrorIs(t, err, matching.ErrBuySLStopPriceLessThanEnginePrice)
@@ -1690,7 +1690,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(35).Mul64(matching.UintPrecision), // stop-price 35
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewStopLimitOrder(
 				symbolID,

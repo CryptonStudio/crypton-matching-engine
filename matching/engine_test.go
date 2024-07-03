@@ -59,8 +59,8 @@ func TestBasic(t *testing.T) {
 		handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).Times(2)
 		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).Times(2)
 		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Times(2)
-		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
-		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
+		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 
 		engine := matching.NewEngine(handler, false)
 
@@ -105,8 +105,8 @@ func TestBasic(t *testing.T) {
 		handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).Times(2)
 		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).Times(2)
 		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Times(2)
-		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
-		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
+		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 
 		engine := matching.NewEngine(handler, false)
 
@@ -152,8 +152,8 @@ func TestBasic(t *testing.T) {
 		handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).Times(1)
 		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).Times(2)
 		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Times(1)
-		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
-		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
+		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 		handler.EXPECT().OnUpdateOrder(gomock.Any(), gomock.Any()).Times(1)
 
 		engine := matching.NewEngine(handler, false)
@@ -200,8 +200,8 @@ func TestBasic(t *testing.T) {
 		handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).Times(1)
 		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).Times(2)
 		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Times(1)
-		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
-		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
+		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 		handler.EXPECT().OnUpdateOrder(gomock.Any(), gomock.Any()).Times(1)
 
 		engine := matching.NewEngine(handler, false)

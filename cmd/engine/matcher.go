@@ -87,13 +87,13 @@ func (m *Matcher) OnDeleteOrder(orderBook *matching.OrderBook, order *matching.O
 	// fmt.Printf("Deleted order %d with price %s and amount %s\n", order.ID, order.Price, order.Quantity)
 }
 
-func (m *Matcher) OnExecuteOrder(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint) {
+func (m *Matcher) OnExecuteOrder(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
 	atomic.AddUint64(&m.executeUpdates[0], 1)
 	atomic.AddUint64(&m.totalUpdates, 1)
 	// fmt.Printf("Executed order %d with price %s and amount %s\n", order.ID, price, quantity)
 }
 
-func (m *Matcher) OnExecuteTrade(orderBook *matching.OrderBook, makerOrder *matching.Order, takerOrder *matching.Order, price matching.Uint, quantity matching.Uint) {
+func (m *Matcher) OnExecuteTrade(orderBook *matching.OrderBook, makerOrder *matching.Order, takerOrder *matching.Order, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
 	atomic.AddUint64(&m.executeUpdates[1], 1)
 	atomic.AddUint64(&m.totalUpdates, 1)
 }

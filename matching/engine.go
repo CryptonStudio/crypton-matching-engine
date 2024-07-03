@@ -251,7 +251,7 @@ func (e *Engine) AddOrder(order Order) error {
 	}
 
 	// Validate order parameters
-	if err := order.CheckLocked(&order, NewZeroUint()); err != nil {
+	if err := order.CheckLocked(&order); err != nil {
 		return err
 	}
 
@@ -278,6 +278,7 @@ func (e *Engine) AddOrder(order Order) error {
 
 // AddOrdersPair adds new orders pair (OCO orders) to the engine.
 // First order should be stop-limit order and second one should be limit order.
+// NOTE: lock all amount in limit order.
 func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 
 	// Get the valid order book for the order
@@ -295,10 +296,10 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 	}
 
 	// Check locked
-	if err := stopLimitOrder.CheckLocked(&stopLimitOrder, limitOrder.available); err != nil {
-		return err
+	if !stopLimitOrder.available.IsZero() {
+		return ErrOCOStopLimitNotZeroLocked
 	}
-	if err := limitOrder.CheckLocked(&limitOrder, stopLimitOrder.available); err != nil {
+	if err := limitOrder.CheckLocked(&limitOrder); err != nil {
 		return err
 	}
 
@@ -375,6 +376,7 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 
 // AddTPSL adds new orders pair take-profit and stop-limit (OCO orders) to the engine.
 // The first order should be take-profit order and the second order should be stop-limit.
+// NOTE: lock all amount in take-profit order.
 func (e *Engine) AddTPSL(TP Order, SL Order) error {
 	// Get the valid order book for the order
 	ob := e.OrderBook(TP.symbolID)
@@ -391,11 +393,11 @@ func (e *Engine) AddTPSL(TP Order, SL Order) error {
 	}
 
 	// Check locked
-	if err := TP.CheckLocked(&TP, SL.available); err != nil {
+	if err := TP.CheckLocked(&TP); err != nil {
 		return err
 	}
-	if err := SL.CheckLocked(&SL, TP.available); err != nil {
-		return err
+	if !SL.available.IsZero() {
+		return ErrOCOStopLimitNotZeroLocked
 	}
 
 	TP.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
@@ -628,7 +630,7 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 		quoteQuantity := quantity.Mul(order.price).Div64(UintPrecision)
 
 		// Call the corresponding handler
-		e.handler.OnExecuteOrder(ob, order, order.price, quantity)
+		e.handler.OnExecuteOrder(ob, order, order.price, quantity, quoteQuantity)
 
 		// Update the common market price
 		ob.updateMarketPrice(order.price)
@@ -718,7 +720,7 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 		quoteQuantity := quantity.Mul(price).Div64(UintPrecision)
 
 		// Call the corresponding handler
-		e.handler.OnExecuteOrder(ob, order, price, quantity)
+		e.handler.OnExecuteOrder(ob, order, price, quantity, quoteQuantity)
 
 		// Update the common market price
 		ob.updateMarketPrice(order.price)

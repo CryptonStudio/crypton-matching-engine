@@ -386,7 +386,7 @@ func (o *Order) Validate(ob *OrderBook) error {
 // all combinations of orders need exact minimum locked amount,
 // except Buy Market Base and Sell Market Quote (will be executed for locked amount)
 // also some orders have already locked, e.g. when they have linked order.
-func (o *Order) CheckLocked(order *Order, alreadyLocked Uint) error {
+func (o *Order) CheckLocked(order *Order) error {
 	var needLocked Uint
 	if o.side == OrderSideSell && !o.quantity.IsZero() {
 		needLocked = o.quantity
@@ -397,13 +397,6 @@ func (o *Order) CheckLocked(order *Order, alreadyLocked Uint) error {
 	if o.side == OrderSideBuy && !o.quoteQuantity.IsZero() {
 		needLocked = o.quoteQuantity
 	}
-
-	// Protect from underflow
-	if needLocked.LessThanOrEqualTo(alreadyLocked) {
-		return nil
-	}
-
-	needLocked = needLocked.Sub(alreadyLocked)
 
 	if o.available.LessThan(needLocked) {
 		return ErrNotEnoughLockedAmount

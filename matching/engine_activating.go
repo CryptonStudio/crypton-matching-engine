@@ -110,6 +110,8 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to delete order: %w", err)
 	}
+	// Erase the order
+	ob.orders.Delete(order.id)
 
 	// Convert the stop order into the market order
 	order.orderType = OrderTypeMarket
@@ -151,6 +153,8 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, erro
 	if err != nil {
 		return false, fmt.Errorf("failed to delete order: %w", err)
 	}
+	// Erase the order
+	ob.orders.Delete(order.id)
 
 	// Convert the stop-limit order into the limit order
 	order.orderType = OrderTypeLimit

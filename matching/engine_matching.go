@@ -41,9 +41,9 @@ func (e *Engine) match(ob *OrderBook) error {
 				quantity, quoteQuantity, price := calcExecutingQuantities(executingOrder, reducingOrder, lotStep, quoteLotStep)
 
 				// Call the corresponding handlers
-				e.handler.OnExecuteOrder(ob, executingOrder, price, quantity)
-				e.handler.OnExecuteOrder(ob, reducingOrder, price, quantity)
-				e.handler.OnExecuteTrade(ob, executingOrder, reducingOrder, price, quantity)
+				e.handler.OnExecuteOrder(ob, executingOrder, price, quantity, quoteQuantity)
+				e.handler.OnExecuteOrder(ob, reducingOrder, price, quantity, quoteQuantity)
+				e.handler.OnExecuteTrade(ob, executingOrder, reducingOrder, price, quantity, quoteQuantity)
 
 				// Execute orders
 				err := e.executeOrder(ob, reducingOrder, quantity, quoteQuantity)
@@ -205,9 +205,9 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			}
 
 			// Call the trade handlers
-			e.handler.OnExecuteOrder(ob, order, price, quantity)
-			e.handler.OnExecuteOrder(ob, executingOrder, price, quantity)
-			e.handler.OnExecuteTrade(ob, executingOrder, order, price, quantity)
+			e.handler.OnExecuteOrder(ob, order, price, quantity, quoteQuantity)
+			e.handler.OnExecuteOrder(ob, executingOrder, price, quantity, quoteQuantity)
+			e.handler.OnExecuteTrade(ob, executingOrder, order, price, quantity, quoteQuantity)
 
 			// Execute orders
 			err := e.executeOrder(ob, order, quantity, quoteQuantity)

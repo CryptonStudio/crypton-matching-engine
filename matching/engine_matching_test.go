@@ -875,7 +875,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -885,7 +885,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(15).Mul64(matching.UintPrecision), // price 15
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
 				matching.NewMaxUint(),
-				matching.NewZeroUint(),
+				matching.NewMaxUint(),
 			),
 		)
 		require.NoError(t, err)
@@ -987,7 +987,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(35).Mul64(matching.UintPrecision), // stop-price 35
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1042,7 +1042,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(35).Mul64(matching.UintPrecision), // stop-price 35
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1097,7 +1097,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1147,7 +1147,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1204,7 +1204,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1261,7 +1261,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(30).Mul64(matching.UintPrecision), // stop-price 30
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1313,7 +1313,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(30).Mul64(matching.UintPrecision), // stop-price 30
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1365,7 +1365,7 @@ func TestOCOOrders(t *testing.T) {
 				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1413,8 +1413,12 @@ func TestOCOOrders(t *testing.T) {
 			quantity: matching.NewUint(1).Mul64(matching.UintPrecision),        // amount 10
 		}
 		handler.EXPECT().OnAddOrder(ob, gomock.Any()).Times(2)
-		handler.EXPECT().OnExecuteOrder(ob, gomock.Any(), firstTrade.price, firstTrade.quantity).Times(2)
-		handler.EXPECT().OnExecuteTrade(ob, gomock.Any(), gomock.Any(), firstTrade.price, firstTrade.quantity).Times(1)
+		handler.EXPECT().OnExecuteOrder(
+			ob, gomock.Any(), firstTrade.price, firstTrade.quantity,
+			firstTrade.price.Mul(firstTrade.quantity).Div64(matching.UintPrecision)).Times(2)
+		handler.EXPECT().OnExecuteTrade(
+			ob, gomock.Any(), gomock.Any(), firstTrade.price, firstTrade.quantity,
+			firstTrade.price.Mul(firstTrade.quantity).Div64(matching.UintPrecision)).Times(1)
 		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Times(2)
 
 		err = engine.AddOrder(matching.NewLimitOrder(
@@ -1462,14 +1466,20 @@ func TestOCOOrders(t *testing.T) {
 		}
 		// 3 orders added -> 2 executions + 1 cancelled
 		handler.EXPECT().OnAddOrder(ob, gomock.Any()).Times(3)
-		handler.EXPECT().OnExecuteOrder(ob, gomock.Any(), secondTrade.limitPrice, secondTrade.quantity).Do(
-			func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint) {
-				t.Logf("order %d (order baseq = %s) executed: price %s, quantity %s\n",
+		handler.EXPECT().OnExecuteOrder(
+			ob, gomock.Any(), secondTrade.limitPrice, secondTrade.quantity,
+			secondTrade.limitPrice.Mul(secondTrade.quantity).Div64(matching.UintPrecision)).Do(
+			func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+				t.Logf("order %d (order restQty = %s) executed: price %s, qty %s, quoteQty %s\n",
 					order.ID(), order.RestQuantity().ToFloatString(),
-					price.ToFloatString(), quantity.ToFloatString())
+					price.ToFloatString(), quantity.ToFloatString(),
+					quoteQuantity.ToFloatString(),
+				)
 			}).Times(2)
-		handler.EXPECT().OnExecuteTrade(ob, gomock.Any(), gomock.Any(), secondTrade.limitPrice, secondTrade.quantity).Do(
-			func(orderBook *matching.OrderBook, makerOrder *matching.Order, takerOrder *matching.Order, price matching.Uint, quantity matching.Uint) {
+		handler.EXPECT().OnExecuteTrade(
+			ob, gomock.Any(), gomock.Any(), secondTrade.limitPrice, secondTrade.quantity,
+			secondTrade.limitPrice.Mul(secondTrade.quantity).Div64(matching.UintPrecision)).Do(
+			func(orderBook *matching.OrderBook, makerOrder *matching.Order, takerOrder *matching.Order, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
 				makerOrderExecuted := makerOrder.RestQuantity().Equals(quantity)
 				takerOrderExecuted := takerOrder.RestQuantity().Equals(quantity)
 
@@ -1492,7 +1502,7 @@ func TestOCOOrders(t *testing.T) {
 				secondTrade.stopPrice,
 				secondTrade.quantity,
 				matching.NewMaxUint(),
-				restLocked,
+				matching.NewZeroUint(),
 			),
 			matching.NewLimitOrder(
 				symbolID,
@@ -1583,7 +1593,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.NoError(t, err)
@@ -1690,7 +1700,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(35).Mul64(matching.UintPrecision), // stop-price 35
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewZeroUint(),
+				matching.NewMaxUint(),
 			),
 			matching.NewStopLimitOrder(
 				symbolID,
@@ -1702,7 +1712,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.ErrorIs(t, err, matching.ErrBuyTPStopPriceGreaterThanEnginePrice)
@@ -1759,7 +1769,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.ErrorIs(t, err, matching.ErrSellSLStopPriceGreaterThanEnginePrice)
@@ -1816,7 +1826,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(20).Mul64(matching.UintPrecision), // stop-price 20
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.ErrorIs(t, err, matching.ErrSellTPStopPriceLessThanEnginePrice)
@@ -1868,7 +1878,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.NoError(t, err)
@@ -1927,7 +1937,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.NoError(t, err)
@@ -1986,7 +1996,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.NoError(t, err)
@@ -2040,7 +2050,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.NoError(t, err)
@@ -2094,7 +2104,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(30).Mul64(matching.UintPrecision), // stop-price 30
 				matching.NewUint(3).Mul64(matching.UintPrecision),  // amount 3
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.NoError(t, err)
@@ -2148,7 +2158,7 @@ func TestTPSLOrders(t *testing.T) {
 				matching.NewUint(30).Mul64(matching.UintPrecision), // stop-price 30
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
 				matching.NewMaxUint(),
-				matching.NewMaxUint(),
+				matching.NewZeroUint(),
 			),
 		)
 		require.NoError(t, err)
@@ -2809,11 +2819,13 @@ func setupMockHandler(t *testing.T, handler *mockmatching.MockHandler) {
 	handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
 	handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
 	handler.EXPECT().OnUpdateOrderBook(gomock.Any()).AnyTimes()
-	handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint) {
-			t.Logf("order %d (order restQty = %s) executed: price %s, quantity %s\n",
+	handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+			t.Logf("order %d (order restQty = %s) executed: price %s, qty %s, quoteQty %s\n",
 				order.ID(), order.RestQuantity().ToFloatString(),
-				price.ToFloatString(), quantity.ToFloatString())
+				price.ToFloatString(), quantity.ToFloatString(),
+				quoteQuantity.ToFloatString(),
+			)
 		}).AnyTimes()
-	handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 }

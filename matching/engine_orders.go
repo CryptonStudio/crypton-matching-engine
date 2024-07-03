@@ -528,6 +528,10 @@ func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, recursive bool) 
 
 	linkedOrder := ob.Order(order.linkedOrderID)
 	if linkedOrder != nil {
+		if !linkedOrder.available.IsZero() {
+			order.AddAvailable(linkedOrder.available)
+		}
+
 		return e.deleteOrder(ob, linkedOrder, recursive)
 	}
 

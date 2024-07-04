@@ -313,8 +313,6 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, quantity Uint, quoteQ
 	}
 
 	if order.priceLevel != nil {
-		visible = visible.Sub(order.VisibleQuantity())
-
 		// Reduce the order in the order book
 		priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, quantity, visible)
 		if err != nil {

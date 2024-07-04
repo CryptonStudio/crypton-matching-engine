@@ -37,17 +37,18 @@ func NewMarketOrder(
 	restLocked Uint,
 ) Order {
 	return Order{
-		id:              orderID,
-		symbolID:        symbolID,
-		orderType:       OrderTypeMarket,
-		side:            side,
-		timeInForce:     timeInForce,
-		quantity:        quantity,
-		quoteQuantity:   quoteQuantity,
-		marketSlippage:  slippage,
-		available:       restLocked,
-		restQuantity:    quantity,
-		marketQuoteMode: quantity.IsZero() && !quoteQuantity.IsZero(),
+		id:                orderID,
+		symbolID:          symbolID,
+		orderType:         OrderTypeMarket,
+		side:              side,
+		timeInForce:       timeInForce,
+		quantity:          quantity,
+		quoteQuantity:     quoteQuantity,
+		marketSlippage:    slippage,
+		available:         restLocked,
+		restQuantity:      quantity,
+		restQuoteQuantity: quoteQuantity,
+		marketQuoteMode:   quantity.IsZero() && !quoteQuantity.IsZero(),
 	}
 }
 

@@ -153,8 +153,6 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, erro
 	if err != nil {
 		return false, fmt.Errorf("failed to delete order: %w", err)
 	}
-	// Erase the order
-	ob.orders.Delete(order.id)
 
 	// Convert the stop-limit order into the limit order
 	order.orderType = OrderTypeLimit
@@ -169,15 +167,16 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, erro
 		return false, fmt.Errorf("failed to match limit order: %w", err)
 	}
 
-	if order.IsIOC() || order.IsFOK() {
+	// Delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' and exit.
+	// If executed, handler has been already called.
+	if (order.IsIOC() || order.IsFOK()) && order.IsExecuted() {
+		// Erase the order
+		ob.orders.Delete(order.id)
 		e.handler.OnDeleteOrder(ob, order)
 	}
 
 	// Add remaining order in order book for GTC
 	if order.IsGTC() && !order.IsExecuted() {
-		// Set order to internal order storage
-		ob.orders.Set(order.id, order)
-
 		// Add the new limit order into the order book
 		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(order), order)
 		if err != nil {

@@ -37,18 +37,6 @@ func QuoteLotSizeLimits(priceLimits Limits, lotSizeLimits Limits) Limits {
 	return limits
 }
 
-func ApplyLimits(v Uint, limits Limits) Uint {
-	if v.GreaterThan(limits.Max) {
-		return limits.Max
-	}
-
-	if v.LessThan(limits.Min) {
-		return NewZeroUint()
-	}
-
-	return ApplySteps(v, limits.Step)
-}
-
 func ApplySteps(v Uint, step Uint) Uint {
 	steps, _ := v.QuoRem(step)
 	v = steps.Mul(step)

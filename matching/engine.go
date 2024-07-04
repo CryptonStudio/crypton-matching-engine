@@ -245,6 +245,11 @@ func (e *Engine) AddOrder(order Order) error {
 		return ErrOrderBookNotFound
 	}
 
+	// Change market slippage before validation
+	if order.Type() == OrderTypeMarket {
+		order.marketSlippage = Min(order.marketSlippage, ob.symbol.priceLimits.Max)
+	}
+
 	// Validate order parameters
 	if err := order.Validate(ob); err != nil {
 		return err
@@ -254,8 +259,6 @@ func (e *Engine) AddOrder(order Order) error {
 	if err := order.CheckLocked(&order); err != nil {
 		return err
 	}
-
-	order.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
 
 	task := func(ob *OrderBook) error {
 		// Add the corresponding order type
@@ -296,15 +299,9 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 	}
 
 	// Check locked
-	if !stopLimitOrder.available.IsZero() {
-		return ErrOCOStopLimitNotZeroLocked
-	}
-	if err := limitOrder.CheckLocked(&limitOrder); err != nil {
+	if err := CheckLockedOCO(&stopLimitOrder, &limitOrder); err != nil {
 		return err
 	}
-
-	stopLimitOrder.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
-	limitOrder.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
 
 	// Link OCO orders to each other
 	stopLimitOrder.linkedOrderID = limitOrder.id
@@ -377,87 +374,82 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 // AddTPSL adds new orders pair take-profit and stop-limit (OCO orders) to the engine.
 // The first order should be take-profit order and the second order should be stop-limit.
 // NOTE: lock all amount in take-profit order.
-func (e *Engine) AddTPSL(TP Order, SL Order) error {
+func (e *Engine) AddTPSL(tp Order, sl Order) error {
 	// Get the valid order book for the order
-	ob := e.OrderBook(TP.symbolID)
+	ob := e.OrderBook(tp.symbolID)
 	if ob == nil {
 		return ErrOrderBookNotFound
 	}
 
 	// Validate orders parameters
-	if err := TP.Validate(ob); err != nil {
+	if err := tp.Validate(ob); err != nil {
 		return err
 	}
-	if err := SL.Validate(ob); err != nil {
+	if err := sl.Validate(ob); err != nil {
 		return err
 	}
 
 	// Check locked
-	if err := TP.CheckLocked(&TP); err != nil {
+	// Check locked
+	if err := CheckLockedTPSL(&tp, &sl); err != nil {
 		return err
 	}
-	if !SL.available.IsZero() {
-		return ErrOCOStopLimitNotZeroLocked
-	}
-
-	TP.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
-	SL.ApplyLimits(ob.symbol.priceLimits, ob.symbol.lotSizeLimits, ob.symbol.quoteLotSizeLimits)
 
 	// Link OCO orders to each other
-	TP.linkedOrderID = SL.id
-	SL.linkedOrderID = TP.id
+	tp.linkedOrderID = sl.id
+	sl.linkedOrderID = tp.id
 
 	task := func(ob *OrderBook) error {
 		// Check stop price mode
-		if TP.StopPriceMode() != SL.StopPriceMode() {
+		if tp.StopPriceMode() != sl.StopPriceMode() {
 			return ErrTPSLDifferentStopPriceMode
 		}
 
-		engineStopPrice := ob.GetStopPrice(TP.StopPriceMode())
+		engineStopPrice := ob.GetStopPrice(tp.StopPriceMode())
 
 		// Check engine price
-		if TP.IsBuy() {
-			if SL.stopPrice.LessThan(engineStopPrice) {
+		if tp.IsBuy() {
+			if sl.stopPrice.LessThan(engineStopPrice) {
 				return ErrBuySLStopPriceLessThanEnginePrice
 			}
-			if TP.stopPrice.GreaterThan(engineStopPrice) {
+			if tp.stopPrice.GreaterThan(engineStopPrice) {
 				return ErrBuyTPStopPriceGreaterThanEnginePrice
 			}
 		} else {
-			if SL.stopPrice.GreaterThan(engineStopPrice) {
+			if sl.stopPrice.GreaterThan(engineStopPrice) {
 				return ErrSellSLStopPriceGreaterThanEnginePrice
 			}
-			if TP.stopPrice.LessThan(engineStopPrice) {
+			if tp.stopPrice.LessThan(engineStopPrice) {
 				return ErrSellTPStopPriceLessThanEnginePrice
 			}
 		}
 
-		err := e.addStopLimitOrder(ob, TP, false)
+		err := e.addStopLimitOrder(ob, tp, false)
 		if err != nil {
 			return err
 		}
 
-		tpFromOB := ob.Order(TP.id)
+		tpFromOB := ob.Order(tp.id)
 
 		// Check if tp order has been executed or activated
 		if tpFromOB == nil || tpFromOB.Activated() {
 			// Imitation of order placing and cancellation of sl linked order
-			e.handler.OnAddOrder(ob, &SL)
-			e.handler.OnDeleteOrder(ob, &SL)
+			e.handler.OnAddOrder(ob, &sl)
+			e.handler.OnDeleteOrder(ob, &sl)
 		} else {
 			// Add sl order
-			err = e.addStopLimitOrder(ob, SL, false)
+			err = e.addStopLimitOrder(ob, sl, false)
 			if err != nil {
 				return err
 			}
 
 			// Find sl order in orderbook
-			slFromOB := ob.Order(SL.id)
+			slFromOB := ob.Order(sl.id)
 
 			// Check if sl order has been executed or activated
 			if slFromOB == nil || slFromOB.Activated() {
 				// check if order has been already deleted
-				tpFromOB = ob.Order(TP.id)
+				tpFromOB = ob.Order(tp.id)
 				if tpFromOB == nil {
 					return nil
 				}

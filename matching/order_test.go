@@ -82,9 +82,7 @@ func TestOrderRestQuantities(t *testing.T) {
 		}
 
 		rest := order.RestQuantity()
-		restQuote := order.RestQuoteQuantity(tc.price)
 
 		require.True(t, tc.expectRest.Equals(rest), fmt.Sprintf("%s, want: %s, have: %s", tc.name, tc.expectRest, rest))
-		require.True(t, tc.expectRestQuote.Equals(restQuote), fmt.Sprintf("%s, want: %s, have: %s", tc.name, tc.expectRestQuote, restQuote))
 	}
 }

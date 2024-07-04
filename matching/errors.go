@@ -6,22 +6,24 @@ import (
 
 // Errors used by the package.
 var (
-	ErrOrderBookDuplicate       = errors.New("order book is duplicated")
-	ErrOrderBookNotFound        = errors.New("order book is not found")
-	ErrOrderDuplicate           = errors.New("order is duplicated")
-	ErrOrderNotFound            = errors.New("order is not found")
-	ErrPriceLevelDuplicate      = errors.New("price level is duplicated")
-	ErrPriceLevelNotFound       = errors.New("price level is not found")
-	ErrInvalidSymbol            = errors.New("invalid symbol")
-	ErrInvalidOrderID           = errors.New("invalid order id")
-	ErrInvalidOrderSide         = errors.New("invalid order side")
-	ErrInvalidOrderType         = errors.New("invalid order type")
-	ErrInvalidOrderPrice        = errors.New("invalid order price")
-	ErrInvalidOrderStopPrice    = errors.New("invalid order stop price")
-	ErrInvalidOrderQuantity     = errors.New("invalid order quantity")
-	ErrForbiddenManualExecution = errors.New("manual execution is forbidden for automatically matching engine")
-	ErrOrderTreeNotFound        = errors.New("order tree not found")
-	ErrNotEnoughLockedAmount    = errors.New("not enough locked amount for order")
+	ErrOrderBookDuplicate        = errors.New("order book is duplicated")
+	ErrOrderBookNotFound         = errors.New("order book is not found")
+	ErrOrderDuplicate            = errors.New("order is duplicated")
+	ErrOrderNotFound             = errors.New("order is not found")
+	ErrPriceLevelDuplicate       = errors.New("price level is duplicated")
+	ErrPriceLevelNotFound        = errors.New("price level is not found")
+	ErrInvalidSymbol             = errors.New("invalid symbol")
+	ErrInvalidOrderID            = errors.New("invalid order id")
+	ErrInvalidOrderSide          = errors.New("invalid order side")
+	ErrInvalidOrderType          = errors.New("invalid order type")
+	ErrInvalidOrderPrice         = errors.New("invalid order price")
+	ErrInvalidOrderStopPrice     = errors.New("invalid order stop price")
+	ErrInvalidOrderQuantity      = errors.New("invalid order quantity")
+	ErrInvalidOrderQuoteQuantity = errors.New("invalid order quote quantity")
+	ErrInvalidMarketSlippage     = errors.New("invalid market slippage")
+	ErrForbiddenManualExecution  = errors.New("manual execution is forbidden for automatically matching engine")
+	ErrOrderTreeNotFound         = errors.New("order tree not found")
+	ErrNotEnoughLockedAmount     = errors.New("not enough locked amount for order")
 
 	// OCO
 	ErrBuyOCOStopPriceLessThanMarketPrice     = errors.New("stop price must be greater than market price (buy OCO order)")
@@ -37,4 +39,26 @@ var (
 	ErrSellTPStopPriceLessThanEnginePrice    = errors.New("stop price must be greater than engine price (sell take-profit order)")
 	ErrTPSLDifferentStopPriceMode            = errors.New("both orders must have the same stop price mode (tpsl)")
 	ErrSLNotZeroLocked                       = errors.New("stop limit order locked must be zero: locked amount must be in take profit")
+
+	// Limits validation
+	// Quantity
+	ErrQuantityMaxViolation  = errors.New("quantity max violation")
+	ErrQuantityMinViolation  = errors.New("quantity min violation")
+	ErrQuantityStepViolation = errors.New("quantity step violation")
+	// Price
+	ErrPriceMaxViolation  = errors.New("price max violation")
+	ErrPriceMinViolation  = errors.New("price min violation")
+	ErrPriceStepViolation = errors.New("price step violation")
+	// Quote quantity
+	ErrQuoteQuantityMaxViolation  = errors.New("quote quantity max violation")
+	ErrQuoteQuantityMinViolation  = errors.New("quote quantity min violation")
+	ErrQuoteQuantityStepViolation = errors.New("quote quantity step violation")
+
+	// Limits validation
+	ErrInvalidQuantity = errors.New("invalid quantity")
+	ErrMaxViolation    = errors.New("max violation")
+	ErrMinViolation    = errors.New("min violation")
+	ErrStepViolation   = errors.New("step violation")
+
+	//
 )

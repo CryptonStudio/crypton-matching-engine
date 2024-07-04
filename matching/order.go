@@ -67,6 +67,7 @@ type Order struct {
 	// use setters with specified limits.
 	available             Uint
 	restQuantity          Uint
+	restQuoteQuantity     Uint
 	executedQuantity      Uint
 	executedQuoteQuantity Uint
 
@@ -239,17 +240,18 @@ func (o *Order) RestQuantity() Uint {
 	return o.restQuantity
 }
 
-// RestQuoteQuantity calculate and returns order remaining quote quantity for price.
-func (o *Order) RestQuoteQuantity(price Uint) Uint {
-	if o.marketQuoteMode {
-		return o.quoteQuantity.Sub(o.executedQuoteQuantity)
-	}
-
-	return o.restQuantity.Mul(price).Div64(UintPrecision)
-}
-
 func (o *Order) SubRestQuantity(v Uint) {
 	o.restQuantity = o.restQuantity.Sub(v)
+}
+
+// RestQuoteQuantity returns remaining quote quantity.
+// Must be used only for market quote mode.
+func (o *Order) RestQuoteQuantity() Uint {
+	return o.restQuoteQuantity
+}
+
+func (o *Order) SubRestQuoteQuantity(v Uint) {
+	o.restQuoteQuantity = o.restQuoteQuantity.Sub(v)
 }
 
 // Available returns order available amount equivalents to rest user locked amount of asset.
@@ -284,7 +286,15 @@ func (o *Order) AddExecutedQuoteQuantity(v Uint) {
 }
 
 // IsExecuted returns true if the order is completely executed.
+// It covers cases
+// - when restQuantity is zero
+// - when restQuoteQuantity (marketQuoteMode)
+// - when check after deleting (cleaned order)
 func (o *Order) IsExecuted() bool {
+	if o.marketQuoteMode {
+		return o.restQuoteQuantity.IsZero()
+	}
+
 	return o.restQuantity.IsZero()
 }
 
@@ -378,27 +388,92 @@ func (o *Order) Validate(ob *OrderBook) error {
 			return ErrInvalidOrderQuantity
 		}
 	}
+	if !o.quantity.IsZero() && !o.quoteQuantity.IsZero() {
+		return ErrInvalidOrderQuantity
+	}
+	if o.quantity.IsZero() {
+		if o.quoteQuantity.LessThan(ob.symbol.quoteLotSizeLimits.Min) {
+			return ErrInvalidOrderQuoteQuantity
+		}
+		if o.quoteQuantity.GreaterThan(ob.symbol.quoteLotSizeLimits.Max) {
+			return ErrInvalidOrderQuoteQuantity
+		}
+		_, rem := o.quoteQuantity.QuoRem(ob.symbol.quoteLotSizeLimits.Step)
+		if !rem.IsZero() {
+			return ErrInvalidOrderQuoteQuantity
+		}
+	}
+
+	// Validate slippage by price limits step
+	if !o.marketSlippage.IsZero() {
+		_, rem := o.marketSlippage.QuoRem(ob.symbol.priceLimits.Step)
+		if !rem.IsZero() {
+			return ErrInvalidMarketSlippage
+		}
+	}
 
 	return nil
 }
 
 // CheckLocked checks locked quantity,
 // all combinations of orders need exact minimum locked amount,
-// except Buy Market Base and Sell Market Quote (will be executed for locked amount)
+// except Buy Market Base, Sell Market Quote,
+// Buy Stop Base, Sell Stop quote (will be executed for locked amount),
 // also some orders have already locked, e.g. when they have linked order.
 func (o *Order) CheckLocked(order *Order) error {
 	var needLocked Uint
+	// Sell Limit, Sell Stop-limit, Sell Market, Sell Stop
 	if o.side == OrderSideSell && !o.quantity.IsZero() {
 		needLocked = o.quantity
 	}
+	// Buy Limit, Buy Stop-limit
 	if o.side == OrderSideBuy && !o.quantity.IsZero() && !o.price.IsZero() {
 		needLocked = o.quantity.Mul(o.price).Div64(UintPrecision)
 	}
+	// Buy Market Quote, Buy Stop Quote
 	if o.side == OrderSideBuy && !o.quoteQuantity.IsZero() {
 		needLocked = o.quoteQuantity
 	}
 
 	if o.available.LessThan(needLocked) {
+		return ErrNotEnoughLockedAmount
+	}
+
+	return nil
+}
+
+// CheckLockedOCO calculates and validates available for OCO orders pair
+func CheckLockedOCO(stopLimit *Order, limit *Order) error {
+	if !stopLimit.available.IsZero() {
+		return ErrOCOStopLimitNotZeroLocked
+	}
+
+	needLocked := limit.quantity
+	if limit.Side() == OrderSideBuy {
+		price := Max(stopLimit.price, limit.price)
+		needLocked = limit.quantity.Mul(price).Div64(UintPrecision)
+	}
+
+	if limit.available.LessThan(needLocked) {
+		return ErrNotEnoughLockedAmount
+	}
+
+	return nil
+}
+
+// CheckLockedTPSL calculates and validates available for TP/SL orders pair
+func CheckLockedTPSL(tp *Order, sl *Order) error {
+	if !sl.available.IsZero() {
+		return ErrSLNotZeroLocked
+	}
+
+	needLocked := tp.quantity
+	if tp.Side() == OrderSideBuy {
+		price := Max(tp.price, sl.price)
+		needLocked = tp.quantity.Mul(price).Div64(UintPrecision)
+	}
+
+	if tp.available.LessThan(needLocked) {
 		return ErrNotEnoughLockedAmount
 	}
 
@@ -423,24 +498,7 @@ func (o *Order) PartiallyExecuted() bool {
 
 ////////////////////////////////////////////////////////////////
 
-func (o *Order) ApplyLimits(priceLimits Limits, lotSizeLimits Limits, quoteLotSizeLimits Limits) {
-	o.price = ApplyLimits(o.price, priceLimits)
-	o.stopPrice = ApplyLimits(o.stopPrice, priceLimits)
-	o.quantity = ApplyLimits(o.quantity, lotSizeLimits)
-	o.quoteQuantity = ApplyLimits(o.quoteQuantity, quoteLotSizeLimits)
-	o.restQuantity = ApplyLimits(o.restQuantity, lotSizeLimits)
-
-	o.marketSlippage = ApplySteps(Min(o.marketSlippage, priceLimits.Max), priceLimits.Step)
-	o.trailingDistance = ApplySteps(Min(o.trailingDistance, priceLimits.Max), priceLimits.Step)
-	o.trailingStep = ApplySteps(Min(o.trailingStep, priceLimits.Max), priceLimits.Step)
-
-	if o.side == OrderSideBuy {
-		o.available = ApplySteps(o.available, quoteLotSizeLimits.Step)
-	} else {
-		o.available = ApplySteps(o.available, lotSizeLimits.Step)
-	}
-}
-
+// Clean cleans the order, use before put order to the pool
 func (o *Order) Clean() {
 	o.id = 0
 	o.symbolID = 0

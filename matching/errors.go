@@ -39,26 +39,4 @@ var (
 	ErrSellTPStopPriceLessThanEnginePrice    = errors.New("stop price must be greater than engine price (sell take-profit order)")
 	ErrTPSLDifferentStopPriceMode            = errors.New("both orders must have the same stop price mode (tpsl)")
 	ErrSLNotZeroLocked                       = errors.New("stop limit order locked must be zero: locked amount must be in take profit")
-
-	// Limits validation
-	// Quantity
-	ErrQuantityMaxViolation  = errors.New("quantity max violation")
-	ErrQuantityMinViolation  = errors.New("quantity min violation")
-	ErrQuantityStepViolation = errors.New("quantity step violation")
-	// Price
-	ErrPriceMaxViolation  = errors.New("price max violation")
-	ErrPriceMinViolation  = errors.New("price min violation")
-	ErrPriceStepViolation = errors.New("price step violation")
-	// Quote quantity
-	ErrQuoteQuantityMaxViolation  = errors.New("quote quantity max violation")
-	ErrQuoteQuantityMinViolation  = errors.New("quote quantity min violation")
-	ErrQuoteQuantityStepViolation = errors.New("quote quantity step violation")
-
-	// Limits validation
-	ErrInvalidQuantity = errors.New("invalid quantity")
-	ErrMaxViolation    = errors.New("max violation")
-	ErrMinViolation    = errors.New("min violation")
-	ErrStepViolation   = errors.New("step violation")
-
-	//
 )

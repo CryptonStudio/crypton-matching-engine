@@ -424,15 +424,15 @@ func (o *Order) CheckLocked(order *Order) error {
 	var needLocked Uint
 	// Sell Limit, Sell Stop-limit, Sell Market, Sell Stop
 	if o.side == OrderSideSell && !o.quantity.IsZero() {
-		needLocked = o.quantity
+		needLocked = o.restQuantity
 	}
 	// Buy Limit, Buy Stop-limit
 	if o.side == OrderSideBuy && !o.quantity.IsZero() && !o.price.IsZero() {
-		needLocked = o.quantity.Mul(o.price).Div64(UintPrecision)
+		needLocked = o.restQuantity.Mul(o.price).Div64(UintPrecision)
 	}
 	// Buy Market Quote, Buy Stop Quote
 	if o.side == OrderSideBuy && !o.quoteQuantity.IsZero() {
-		needLocked = o.quoteQuantity
+		needLocked = o.restQuoteQuantity
 	}
 
 	if o.available.LessThan(needLocked) {
@@ -480,10 +480,11 @@ func CheckLockedTPSL(tp *Order, sl *Order) error {
 	return nil
 }
 
-func (o *Order) RestoreExecution(executed, executedQuote, restQuantity Uint) {
+func (o *Order) RestoreExecution(executed, executedQuote, restQuantity, restQuoteQuantity Uint) {
 	o.executedQuantity = executed
 	o.executedQuoteQuantity = executedQuote
 	o.restQuantity = restQuantity
+	o.restQuoteQuantity = restQuoteQuantity
 }
 
 ////////////////////////////////////////////////////////////////

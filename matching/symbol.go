@@ -50,3 +50,15 @@ func (s Symbol) LotSizeLimits() Limits {
 func (s Symbol) Valid() bool {
 	return s.priceLimits.Valid() && s.lotSizeLimits.Valid()
 }
+
+func (s Symbol) CalcQtyWithLimits(quoteQty, price Uint) Uint {
+	// Reminder must be checked in next iteration of loop and deleted with order
+	qty, _ := quoteQty.Mul64(UintPrecision).QuoRem(price)
+	return ApplySteps(qty, s.lotSizeLimits.Step)
+}
+
+func (s Symbol) CalcQuoteQtyWithLimits(qty, price Uint) Uint {
+	// Reminder must be checked in next iteration of loop and deleted with order
+	quoteQty := qty.Mul(price).Div64(UintPrecision)
+	return ApplySteps(quoteQty, s.quoteLotSizeLimits.Step)
+}

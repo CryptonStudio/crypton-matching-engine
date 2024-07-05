@@ -220,7 +220,8 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			// Choose less qty as qty for trade
 			if execQty.LessThan(qty) {
 				qty = execQty
-				quoteQty = execQty.Mul(price).Div64(UintPrecision)
+				// need to calc like this because of crossed qty and price
+				quoteQty = ob.symbol.CalcQuoteQtyWithLimits(qty, price)
 			}
 
 			// Call the trade handlers

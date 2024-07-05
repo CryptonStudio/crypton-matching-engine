@@ -127,7 +127,7 @@ func FuzzAllOrders(f *testing.F) {
 }
 
 func TestFailedExample(t *testing.T) {
-	testAllOrders(t, []byte("0\x03000\x000001\x02\x02\x01\x01\x01\x010\x0300000000\x02\x02\x01\x010000000000"))
+	testAllOrders(t, []byte("0001000 000\x00\x01\x02\x01\x010000000000\x01\x02\x01\x010000000000\x01\x01\x01\x000000000000\x03\x01\x01\x00000000\xf0\xf000"))
 }
 
 func testAllOrders(t *testing.T, a []byte) {

@@ -246,7 +246,7 @@ func (e *Engine) AddOrder(order Order) error {
 	}
 
 	// Change market slippage before validation
-	if order.Type() == OrderTypeMarket {
+	if order.Type() == OrderTypeMarket || order.Type() == OrderTypeStop || order.Type() == OrderTypeTrailingStop {
 		order.marketSlippage = Min(order.marketSlippage, ob.symbol.priceLimits.Max)
 	}
 

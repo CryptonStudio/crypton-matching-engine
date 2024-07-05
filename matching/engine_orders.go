@@ -552,14 +552,14 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error 
 		e.updatePriceLevel(ob, priceLevelUpdate)
 	}
 
+	// Call the corresponding handler
+	e.handler.OnDeleteOrder(ob, order)
+
 	// Erase the order
 	ob.orders.Delete(order.id)
 
 	// Release the order
 	e.allocator.PutOrder(order)
-
-	// Call the corresponding handler
-	e.handler.OnDeleteOrder(ob, order)
 
 	// Automatic order matching
 	if e.matching && !recursive {
@@ -615,7 +615,11 @@ func calcExecutingForTaker(taker *Order, makerPrice Uint) (qty Uint, quoteQty Ui
 		// Reminder must be checked in next iteration of loop and deleted with order
 		qty, _ = quoteQty.Mul64(UintPrecision).QuoRem(makerPrice)
 		// Available is already in base asset
-		qty = Min(qty, taker.available)
+		if taker.available.LessThan(qty) {
+			qty = taker.available
+			quoteQty = qty.Mul(makerPrice).Div64(UintPrecision)
+		}
+
 		return
 	}
 

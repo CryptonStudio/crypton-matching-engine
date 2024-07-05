@@ -110,18 +110,12 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to delete order: %w", err)
 	}
-	// Erase the order
-	ob.orders.Delete(order.id)
 
 	// Convert the stop order into the market order
 	order.orderType = OrderTypeMarket
 	order.price = NewZeroUint()
 	order.stopPrice = NewZeroUint()
-	if order.IsFOK() {
-		order.timeInForce = OrderTimeInForceFOK
-	} else {
-		order.timeInForce = OrderTimeInForceIOC
-	}
+	order.timeInForce = OrderTimeInForceIOC
 
 	// Call the corresponding handler
 	e.handler.OnUpdateOrder(ob, order)
@@ -129,14 +123,17 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 	// Match the market order
 	e.matchMarketOrder(ob, order)
 
-	// Call the corresponding handler
-	e.handler.OnDeleteOrder(ob, order)
+	// Delete the remaining part
+	if !order.IsExecuted() {
+		// Call the corresponding handler
+		e.handler.OnDeleteOrder(ob, order)
 
-	// Erase the order
-	ob.orders.Delete(order.id)
+		// Erase the order
+		ob.orders.Delete(order.id)
 
-	// Release the order
-	e.allocator.PutOrder(order)
+		// Release the order
+		e.allocator.PutOrder(order)
+	}
 
 	return true, nil
 }
@@ -169,10 +166,15 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, erro
 
 	// Delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' and exit.
 	// If executed, handler has been already called.
-	if (order.IsIOC() || order.IsFOK()) && order.IsExecuted() {
+	if (order.IsIOC() || order.IsFOK()) && !order.IsExecuted() {
+		// Call the corresponding handler
+		e.handler.OnDeleteOrder(ob, order)
+
 		// Erase the order
 		ob.orders.Delete(order.id)
-		e.handler.OnDeleteOrder(ob, order)
+
+		// Release the order
+		e.allocator.PutOrder(order)
 	}
 
 	// Add remaining order in order book for GTC

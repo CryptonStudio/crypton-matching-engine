@@ -160,11 +160,6 @@ func (e *Engine) matchMarketOrder(ob *OrderBook, order *Order) error {
 		}
 	}
 
-	// Fill rest quantity with correct value
-	if order.marketQuoteMode {
-		order.restQuantity, _ = order.quoteQuantity.Mul64(UintPrecision).QuoRem(topPrice)
-	}
-
 	// Match the market order
 	err := e.matchOrder(ob, order)
 	if err != nil {

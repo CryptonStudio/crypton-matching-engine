@@ -200,8 +200,12 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			return nil
 		}
 
+		if order.IsExecuted() {
+			return nil
+		}
+
 		// Execute crossed orders
-		for orderPtr := priceLevel.Value().queue.Front(); !order.IsExecuted() && orderPtr != nil; {
+		for orderPtr := priceLevel.Value().queue.Front(); orderPtr != nil; {
 			orderPtrNext := orderPtr.Next()
 			executingOrder := orderPtr.Value
 

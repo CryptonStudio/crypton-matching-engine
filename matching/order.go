@@ -517,6 +517,7 @@ func (o *Order) Clean() {
 	o.trailingStep = NewZeroUint()
 	o.available = NewZeroUint()
 	o.restQuantity = NewZeroUint()
+	o.restQuoteQuantity = NewZeroUint()
 	o.executedQuantity = NewZeroUint()
 	o.executedQuoteQuantity = NewZeroUint()
 	o.marketQuoteMode = false

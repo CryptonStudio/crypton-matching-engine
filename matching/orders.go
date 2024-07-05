@@ -66,18 +66,20 @@ func NewStopOrder(
 	restLocked Uint,
 ) Order {
 	return Order{
-		id:             orderID,
-		symbolID:       symbolID,
-		orderType:      OrderTypeStop,
-		side:           side,
-		timeInForce:    timeInForce,
-		stopPriceMode:  stopPriceMode,
-		stopPrice:      stopPrice,
-		quantity:       quantity,
-		quoteQuantity:  quoteQuantity,
-		marketSlippage: slippage,
-		available:      restLocked,
-		restQuantity:   quantity,
+		id:                orderID,
+		symbolID:          symbolID,
+		orderType:         OrderTypeStop,
+		side:              side,
+		timeInForce:       timeInForce,
+		stopPriceMode:     stopPriceMode,
+		stopPrice:         stopPrice,
+		quantity:          quantity,
+		quoteQuantity:     quoteQuantity,
+		marketSlippage:    slippage,
+		available:         restLocked,
+		restQuantity:      quantity,
+		restQuoteQuantity: quoteQuantity,
+		marketQuoteMode:   quantity.IsZero() && !quoteQuantity.IsZero(),
 	}
 }
 

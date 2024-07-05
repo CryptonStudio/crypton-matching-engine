@@ -480,11 +480,11 @@ func CheckLockedTPSL(tp *Order, sl *Order) error {
 	return nil
 }
 
-func (o *Order) RestoreExecution(executed, executedQuote, restQuantity, restQuoteQuantity Uint) {
+func (o *Order) RestoreExecution(executed, executedQuote, restQuantity Uint) {
 	o.executedQuantity = executed
 	o.executedQuoteQuantity = executedQuote
+	// don't rest quote, because stop order (market) not activated yet
 	o.restQuantity = restQuantity
-	o.restQuoteQuantity = restQuoteQuantity
 }
 
 ////////////////////////////////////////////////////////////////

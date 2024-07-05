@@ -31,7 +31,7 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 
 	// Delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' and exit.
 	// If executed, handler has been already called.
-	if (newOrder.IsIOC() || newOrder.IsFOK()) && newOrder.IsExecuted() {
+	if (newOrder.IsIOC() || newOrder.IsFOK()) && !newOrder.IsExecuted() {
 		e.handler.OnDeleteOrder(ob, newOrder)
 	}
 
@@ -229,8 +229,9 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 			}
 		}
 
-		// Delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' and exit
-		if newOrder.IsIOC() || newOrder.IsFOK() {
+		// Delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' and exit.
+		// If executed, handler has been already called.
+		if (newOrder.IsIOC() || newOrder.IsFOK()) && !newOrder.IsExecuted() {
 			e.handler.OnDeleteOrder(ob, newOrder)
 		}
 

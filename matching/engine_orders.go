@@ -78,11 +78,8 @@ func (e *Engine) addMarketOrder(ob *OrderBook, order Order, recursive bool) erro
 		e.matchMarketOrder(ob, &newOrder)
 	}
 
-	// Call the corresponding handler,
-	// if executed it has been already called.
-	if !newOrder.IsExecuted() {
-		e.handler.OnDeleteOrder(ob, &newOrder)
-	}
+	// Call the corresponding handler
+	e.handler.OnDeleteOrder(ob, &newOrder)
 
 	// Automatic order matching
 	if e.matching && !recursive {
@@ -145,11 +142,8 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 		// Match the market order
 		e.matchMarketOrder(ob, newOrder)
 
-		// Call the corresponding handler,
-		// if executed it has been already called.
-		if !newOrder.IsExecuted() {
-			e.handler.OnDeleteOrder(ob, newOrder)
-		}
+		// Call the corresponding handler
+		e.handler.OnDeleteOrder(ob, newOrder)
 	}
 
 	err := e.match(ob)

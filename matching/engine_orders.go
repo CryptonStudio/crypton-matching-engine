@@ -78,8 +78,8 @@ func (e *Engine) addMarketOrder(ob *OrderBook, order Order, recursive bool) erro
 		e.matchMarketOrder(ob, &newOrder)
 	}
 
-	// Call the corresponding handler
 	if !newOrder.IsExecuted() {
+		// Call the corresponding handler
 		e.handler.OnDeleteOrder(ob, &newOrder)
 	}
 
@@ -144,8 +144,8 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 		// Match the market order
 		e.matchMarketOrder(ob, newOrder)
 
-		// Call the corresponding handler
 		if !newOrder.IsExecuted() {
+			// Call the corresponding handler
 			e.handler.OnDeleteOrder(ob, newOrder)
 		}
 	}
@@ -283,11 +283,11 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Ui
 	// Check market mode
 	if order.marketQuoteMode {
 		order.SubRestQuoteQuantity(quoteQty)
-
 		if !order.IsExecuted() {
 			e.handler.OnUpdateOrder(ob, order)
 		} else {
 			e.handler.OnDeleteOrder(ob, order)
+			e.deleteOrder(ob, order, true)
 		}
 
 		return nil

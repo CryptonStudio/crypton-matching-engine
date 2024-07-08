@@ -58,7 +58,7 @@ func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Nod
 	priceLevel := node.Value()
 
 	// Activate all stop orders
-	for orderPtr := priceLevel.queue.Front(); orderPtr != nil; orderPtr = orderPtr.Next() {
+	for orderPtr := priceLevel.queue.Front(); orderPtr != nil && orderPtr.Value != nil; orderPtr = orderPtr.Next() {
 		if orderPtr.Value.stopPriceMode != stopPriceMode {
 			continue
 		}
@@ -123,7 +123,6 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 	// Match the market order
 	e.matchMarketOrder(ob, order)
 
-	// Delete the remaining part
 	if !order.IsExecuted() {
 		// Call the corresponding handler
 		e.handler.OnDeleteOrder(ob, order)

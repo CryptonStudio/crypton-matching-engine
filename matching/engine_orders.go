@@ -79,7 +79,9 @@ func (e *Engine) addMarketOrder(ob *OrderBook, order Order, recursive bool) erro
 	}
 
 	// Call the corresponding handler
-	e.handler.OnDeleteOrder(ob, &newOrder)
+	if !newOrder.IsExecuted() {
+		e.handler.OnDeleteOrder(ob, &newOrder)
+	}
 
 	// Automatic order matching
 	if e.matching && !recursive {
@@ -143,7 +145,9 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 		e.matchMarketOrder(ob, newOrder)
 
 		// Call the corresponding handler
-		e.handler.OnDeleteOrder(ob, newOrder)
+		if !newOrder.IsExecuted() {
+			e.handler.OnDeleteOrder(ob, newOrder)
+		}
 	}
 
 	err := e.match(ob)
@@ -279,7 +283,13 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Ui
 	// Check market mode
 	if order.marketQuoteMode {
 		order.SubRestQuoteQuantity(quoteQty)
-		e.handler.OnUpdateOrder(ob, order)
+
+		if !order.IsExecuted() {
+			e.handler.OnUpdateOrder(ob, order)
+		} else {
+			e.handler.OnDeleteOrder(ob, order)
+		}
+
 		return nil
 	}
 
@@ -322,7 +332,6 @@ func (e *Engine) calcExecuteOrder(ob *OrderBook, order *Order, quantity Uint, qu
 
 	// Check market mode,
 	// check step (we delete here all remainders, so we don't need to check when match).
-
 	if order.marketQuoteMode {
 		if order.restQuoteQuantity.Sub(quoteQty).LessThan(ob.symbol.quoteLotSizeLimits.Step) {
 			quoteQty = order.restQuoteQuantity

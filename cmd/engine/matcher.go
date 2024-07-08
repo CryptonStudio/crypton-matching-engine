@@ -93,7 +93,7 @@ func (m *Matcher) OnExecuteOrder(orderBook *matching.OrderBook, orderID uint64, 
 	// fmt.Printf("Executed order %d with price %s and amount %s\n", order.ID, price, quantity)
 }
 
-func (m *Matcher) OnExecuteTrade(orderBook *matching.OrderBook, makerOrderID uint64, takerOrderID uint64, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+func (m *Matcher) OnExecuteTrade(orderBook *matching.OrderBook, makerOrderID matching.OrderUpdate, takerOrderID matching.OrderUpdate, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
 	atomic.AddUint64(&m.executeUpdates[1], 1)
 	atomic.AddUint64(&m.totalUpdates, 1)
 }

@@ -1479,11 +1479,18 @@ func TestOCOOrders(t *testing.T) {
 		handler.EXPECT().OnExecuteTrade(
 			ob, gomock.Any(), gomock.Any(), secondTrade.limitPrice, secondTrade.quantity,
 			secondTrade.limitPrice.Mul(secondTrade.quantity).Div64(matching.UintPrecision)).Do(
-			func(orderBook *matching.OrderBook, makerOrderID uint64, takerOrderID uint64, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+			func(orderBook *matching.OrderBook, makerOrderUpdate matching.OrderUpdate, takerOrderUpdate matching.OrderUpdate, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+				makerOrderUpdate.Quantity.Equals(firstTrade.quantity)
+				takerOrderUpdate.Quantity.Equals(firstTrade.quantity)
+
+				quoteQty := firstTrade.quantity.Mul(firstTrade.price).Div64(matching.UintPrecision)
+				makerOrderUpdate.QuoteQuantity.Equals(quoteQty)
+				takerOrderUpdate.QuoteQuantity.Equals(quoteQty)
+
 				t.Logf("trade qty: %s,maker executed: %d, taker executed: %d",
 					quantity.ToFloatString(),
-					makerOrderID,
-					takerOrderID)
+					makerOrderUpdate.ID,
+					takerOrderUpdate.ID)
 			}).Times(1)
 		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Times(3)
 
@@ -2457,7 +2464,12 @@ func setupMarketState(t *testing.T, engine *matching.Engine, symbolID uint32) {
 func setupMockHandler(t *testing.T, handler *mockmatching.MockHandler) {
 	handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
 	handler.EXPECT().OnAddOrder(gomock.Any(), gomock.Any()).AnyTimes()
-	handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Do(
+		func(orderBook *matching.OrderBook, order *matching.Order) {
+			if order.ID() == 0 {
+				panic("order id is 0")
+			}
+		}).AnyTimes()
 	handler.EXPECT().OnUpdateOrder(gomock.Any(), gomock.Any()).AnyTimes()
 	handler.EXPECT().OnAddPriceLevel(gomock.Any(), gomock.Any()).Do(
 		func(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {

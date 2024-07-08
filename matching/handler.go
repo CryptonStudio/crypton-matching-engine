@@ -20,7 +20,7 @@ type Handler interface {
 
 	// Matching handlers
 	OnExecuteOrder(orderBook *OrderBook, orderID uint64, price Uint, quantity Uint, quoteQuantity Uint)
-	OnExecuteTrade(orderBook *OrderBook, makerOrderID uint64, takerOrderID uint64, price Uint, quantity Uint, quoteQuantity Uint)
+	OnExecuteTrade(orderBook *OrderBook, makerOrderUpdate OrderUpdate, takerOrderUpdate OrderUpdate, price Uint, quantity Uint, quoteQuantity Uint)
 
 	// Errors handler
 	OnError(orderBook *OrderBook, err error)

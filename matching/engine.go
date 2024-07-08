@@ -255,7 +255,7 @@ func (e *Engine) AddOrder(order Order) error {
 		return err
 	}
 
-	// Prevent underflow with small digits (it must be covered by fees in usage)]
+	// Prevent underflow with small digits (it must be covered by fees in usage)
 	if !order.available.IsMax() {
 		if order.side == OrderSideBuy {
 			order.AddAvailable(ob.symbol.lotSizeLimits.Step)

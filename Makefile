@@ -7,6 +7,9 @@ test100:
 race:
 	go test -v -race -count=1 ./...
 
+gen: 
+	go generate ./...
+
 .PHONY: cover
 cover:
 	go test -short -count=1 -race -coverprofile=coverage.out ./...

@@ -264,49 +264,58 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 ////////////////////////////////////////////////////////////////
 
 // executeOrder processes the fact of order execution
-func (e *Engine) executeOrder(ob *OrderBook, order *Order, quantity Uint, quoteQuantity Uint) error {
+func (e *Engine) executeOrder(ob *OrderBook, order *Order, price Uint, quantity Uint, quoteQuantity Uint) (qty Uint, quoteQty Uint, err error) {
+	// Redefine for actually executed
+	qty, quoteQty = quantity, quoteQuantity
+
 	// Decrease the order available quantity
 	if order.IsBuy() {
-		order.SubAvailable(quoteQuantity)
+		order.SubAvailable(quoteQty)
 	} else {
-		order.SubAvailable(quantity)
+		order.SubAvailable(qty)
 	}
 
 	// Increase the order executed quantity
-	order.AddExecutedQuantity(quantity)
-	order.AddExecutedQuoteQuantity(quoteQuantity)
+	order.AddExecutedQuantity(qty)
+	order.AddExecutedQuoteQuantity(quoteQty)
 
 	// Check and delete linked orders
-	err := e.deleteLinkedOrder(ob, order, true)
+	err = e.deleteLinkedOrder(ob, order, true)
 	if err != nil {
-		return fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
+		err = fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
+		return
 	}
 
 	// Check market mode
 	if order.marketQuoteMode {
 		// check step (we delete here all remainders, so we don't need to check when match)
-		if order.restQuoteQuantity.Sub(quoteQuantity).LessThan(ob.symbol.quoteLotSizeLimits.Step) {
+		if order.restQuoteQuantity.Sub(quoteQty).LessThan(ob.symbol.quoteLotSizeLimits.Step) {
+			quoteQty = order.restQuoteQuantity
+			e.handler.OnExecuteOrder(ob, order.id, price, qty, quoteQty)
 			e.deleteOrder(ob, order, true)
-			return nil
+			return
 		}
 
-		order.SubRestQuoteQuantity(quoteQuantity)
+		order.SubRestQuoteQuantity(quoteQty)
+		e.handler.OnExecuteOrder(ob, order.id, price, qty, quoteQty)
 		e.handler.OnUpdateOrder(ob, order)
-		return nil
+		return
 	}
 
 	// Reduce the order rest quantities
 	visible := order.VisibleQuantity()
 
 	// check step (we delete here all remainders, so we don't need to check when match)
-	if order.restQuantity.Sub(quantity).LessThan(ob.symbol.lotSizeLimits.Step) {
-		quantity = order.restQuantity
+	if order.restQuantity.Sub(qty).LessThan(ob.symbol.lotSizeLimits.Step) {
+		qty = order.restQuantity
 	}
-	order.SubRestQuantity(quantity)
+	order.SubRestQuantity(qty)
 
 	visible = visible.Sub(order.VisibleQuantity())
 
 	// Call the corresponding handler
+	e.handler.OnExecuteOrder(ob, order.id, price, qty, quoteQty)
+
 	if !order.IsExecuted() {
 		e.handler.OnUpdateOrder(ob, order)
 	} else {
@@ -315,9 +324,10 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, quantity Uint, quoteQ
 
 	if order.priceLevel != nil {
 		// Reduce the order in the order book
-		priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, quantity, visible)
-		if err != nil {
-			return err
+		priceLevelUpdate, reduceErr := ob.reduceOrder(ob.treeForOrder(order), order, qty, visible)
+		if reduceErr != nil {
+			err = reduceErr
+			return
 		}
 
 		e.updatePriceLevel(ob, priceLevelUpdate)
@@ -332,7 +342,7 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, quantity Uint, quoteQ
 		e.allocator.PutOrder(order)
 	}
 
-	return nil
+	return
 }
 
 ////////////////////////////////////////////////////////////////

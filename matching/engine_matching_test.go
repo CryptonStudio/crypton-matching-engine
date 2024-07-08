@@ -1469,9 +1469,9 @@ func TestOCOOrders(t *testing.T) {
 		handler.EXPECT().OnExecuteOrder(
 			ob, gomock.Any(), secondTrade.limitPrice, secondTrade.quantity,
 			secondTrade.limitPrice.Mul(secondTrade.quantity).Div64(matching.UintPrecision)).Do(
-			func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
-				t.Logf("order %d (order restQty = %s) executed: price %s, qty %s, quoteQty %s\n",
-					order.ID(), order.RestQuantity().ToFloatString(),
+			func(orderBook *matching.OrderBook, orderID uint64, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+				t.Logf("order %d executed: price %s, qty %s, quoteQty %s\n",
+					orderID,
 					price.ToFloatString(), quantity.ToFloatString(),
 					quoteQuantity.ToFloatString(),
 				)
@@ -1479,14 +1479,11 @@ func TestOCOOrders(t *testing.T) {
 		handler.EXPECT().OnExecuteTrade(
 			ob, gomock.Any(), gomock.Any(), secondTrade.limitPrice, secondTrade.quantity,
 			secondTrade.limitPrice.Mul(secondTrade.quantity).Div64(matching.UintPrecision)).Do(
-			func(orderBook *matching.OrderBook, makerOrder *matching.Order, takerOrder *matching.Order, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
-				makerOrderExecuted := makerOrder.RestQuantity().Equals(quantity)
-				takerOrderExecuted := takerOrder.RestQuantity().Equals(quantity)
-
-				t.Logf("trade qty: %s,maker executed: %t, taker executed: %t",
+			func(orderBook *matching.OrderBook, makerOrderID uint64, takerOrderID uint64, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+				t.Logf("trade qty: %s,maker executed: %d, taker executed: %d",
 					quantity.ToFloatString(),
-					makerOrderExecuted,
-					takerOrderExecuted)
+					makerOrderID,
+					takerOrderID)
 			}).Times(1)
 		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Times(3)
 
@@ -2470,9 +2467,9 @@ func setupMockHandler(t *testing.T, handler *mockmatching.MockHandler) {
 	handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
 	handler.EXPECT().OnUpdateOrderBook(gomock.Any()).AnyTimes()
 	handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(orderBook *matching.OrderBook, order *matching.Order, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
-			t.Logf("order %d (order restQty = %s) executed: price %s, qty %s, quoteQty %s\n",
-				order.ID(), order.RestQuantity().ToFloatString(),
+		func(orderBook *matching.OrderBook, orderID uint64, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+			t.Logf("order %d executed: price %s, qty %s, quoteQty %s\n",
+				orderID,
 				price.ToFloatString(), quantity.ToFloatString(),
 				quoteQuantity.ToFloatString(),
 			)

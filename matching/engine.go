@@ -622,7 +622,7 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 		quoteQuantity := quantity.Mul(order.price).Div64(UintPrecision)
 
 		// Call the corresponding handler
-		e.handler.OnExecuteOrder(ob, order, order.price, quantity, quoteQuantity)
+		e.handler.OnExecuteOrder(ob, order.id, order.price, quantity, quoteQuantity)
 
 		// Update the common market price
 		ob.updateMarketPrice(order.price)
@@ -712,7 +712,7 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 		quoteQuantity := quantity.Mul(price).Div64(UintPrecision)
 
 		// Call the corresponding handler
-		e.handler.OnExecuteOrder(ob, order, price, quantity, quoteQuantity)
+		e.handler.OnExecuteOrder(ob, order.id, price, quantity, quoteQuantity)
 
 		// Update the common market price
 		ob.updateMarketPrice(order.price)

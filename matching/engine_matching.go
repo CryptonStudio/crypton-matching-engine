@@ -48,23 +48,27 @@ func (e *Engine) match(ob *OrderBook) error {
 				// Get the execution quantities
 				quantity, quoteQuantity := executing.restQuantity, executing.restQuantity.Mul(price).Div64(UintPrecision)
 
-				// Call handlers
-				e.handler.OnExecuteOrder(ob, executing, price, quantity, quoteQuantity)
-				e.handler.OnExecuteOrder(ob, reducing, price, quantity, quoteQuantity)
-				if executing.id < reducing.id {
-					e.handler.OnExecuteTrade(ob, executing, reducing, price, quantity, quoteQuantity)
-				} else {
-					e.handler.OnExecuteTrade(ob, reducing, executing, price, quantity, quoteQuantity)
-				}
-
 				// Execute orders
-				err := e.executeOrder(ob, reducing, quantity, quoteQuantity)
+				reducingQty, reducingQuoteQty, err := e.executeOrder(ob, reducing, price, quantity, quoteQuantity)
 				if err != nil {
 					return fmt.Errorf("failed to execute order (id: %d): %w", reducing.ID(), err)
 				}
-				err = e.executeOrder(ob, executing, quantity, quoteQuantity)
+				executingQty, executingQuoteQty, err := e.executeOrder(ob, executing, price, quantity, quoteQuantity)
 				if err != nil {
 					return fmt.Errorf("failed to execute order (id: %d): %w", executing.ID(), err)
+				}
+
+				// Call trade handler
+				if executing.id < reducing.id {
+					e.handler.OnExecuteTrade(
+						ob, executing.id, reducing.id, price,
+						Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
+					)
+				} else {
+					e.handler.OnExecuteTrade(
+						ob, reducing.id, executing.id, price,
+						Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
+					)
 				}
 
 				// Update common market price
@@ -224,20 +228,21 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 				quoteQty = ob.symbol.CalcQuoteQtyWithLimits(qty, price)
 			}
 
-			// Call the trade handlers
-			e.handler.OnExecuteOrder(ob, executingOrder, price, qty, quoteQty)
-			e.handler.OnExecuteOrder(ob, order, price, qty, quoteQty)
-			e.handler.OnExecuteTrade(ob, executingOrder, order, price, qty, quoteQty)
-
 			// Execute orders
-			err := e.executeOrder(ob, order, qty, quoteQty)
+			reducingQty, reducingQuoteQty, err := e.executeOrder(ob, order, price, qty, quoteQty)
 			if err != nil {
 				return fmt.Errorf("failed to execute order (id: %d): %w", order.ID(), err)
 			}
-			err = e.executeOrder(ob, executingOrder, qty, quoteQty)
+			executingQty, executingQuoteQty, err := e.executeOrder(ob, executingOrder, price, qty, quoteQty)
 			if err != nil {
 				return fmt.Errorf("failed to execute order (id: %d): %w", executingOrder.ID(), err)
 			}
+
+			// Call the trade handlers
+			e.handler.OnExecuteTrade(
+				ob, executingOrder.id, order.id, price,
+				Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
+			)
 
 			// Update common market price
 			ob.updateMarketPrice(price)
@@ -253,7 +258,7 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 	}
 }
 
-////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
 // Matching chains
 ////////////////////////////////////////////////////////////////
 

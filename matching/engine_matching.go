@@ -40,9 +40,10 @@ func (e *Engine) match(ob *OrderBook) error {
 				// Need to define price based on maker order,
 				// define maker as order that has come earlier,
 				// calculate price and call handler based on this.
-				price := reducing.price
+				price, makerOrderID, takerOrderID := reducing.price, reducing.id, executing.id
 				if executing.id < reducing.id {
 					price = executing.price
+					makerOrderID, takerOrderID = takerOrderID, makerOrderID
 				}
 
 				// Get the execution quantities
@@ -59,17 +60,10 @@ func (e *Engine) match(ob *OrderBook) error {
 				}
 
 				// Call trade handler
-				if executing.id < reducing.id {
-					e.handler.OnExecuteTrade(
-						ob, executing.id, reducing.id, price,
-						Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
-					)
-				} else {
-					e.handler.OnExecuteTrade(
-						ob, reducing.id, executing.id, price,
-						Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
-					)
-				}
+				e.handler.OnExecuteTrade(
+					ob, makerOrderID, takerOrderID, price,
+					Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
+				)
 
 				// Update common market price
 				ob.updateMarketPrice(price)
@@ -215,6 +209,8 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 
 			// Get the execution price and quantity of crossed order, executing is maker
 			price, execQty := executingOrder.price, executingOrder.restQuantity
+			makerOrderID, takerOrderID := executingOrder.id, order.id
+
 			qty, quoteQty := calcExecutingForTaker(order, price)
 			// Check if can't be matched at all (market with not enough available)
 			if qty.IsZero() {
@@ -240,7 +236,7 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 
 			// Call the trade handlers
 			e.handler.OnExecuteTrade(
-				ob, executingOrder.id, order.id, price,
+				ob, makerOrderID, takerOrderID, price,
 				Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
 			)
 

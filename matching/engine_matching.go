@@ -49,21 +49,25 @@ func (e *Engine) match(ob *OrderBook) error {
 				// Get the execution quantities
 				quantity, quoteQuantity := executing.restQuantity, executing.restQuantity.Mul(price).Div64(UintPrecision)
 
-				// Execute orders
-				reducingQty, reducingQuoteQty, err := e.executeOrder(ob, reducing, price, quantity, quoteQuantity)
-				if err != nil {
-					return fmt.Errorf("failed to execute order (id: %d): %w", reducing.ID(), err)
-				}
-				executingQty, executingQuoteQty, err := e.executeOrder(ob, executing, price, quantity, quoteQuantity)
-				if err != nil {
-					return fmt.Errorf("failed to execute order (id: %d): %w", executing.ID(), err)
-				}
-
-				// Call trade handler
+				// Calc quantities and call handlers
+				reducingQty, reducingQuoteQty := e.calcExecuteOrder(ob, reducing, quantity, quoteQuantity)
+				executingQty, executingQuoteQty := e.calcExecuteOrder(ob, executing, quantity, quoteQuantity)
+				e.handler.OnExecuteOrder(ob, reducing.id, price, reducingQty, reducingQuoteQty)
+				e.handler.OnExecuteOrder(ob, executing.id, price, executingQty, executingQuoteQty)
 				e.handler.OnExecuteTrade(
 					ob, makerOrderID, takerOrderID, price,
 					Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
 				)
+
+				// Execute orders
+				err := e.executeOrder(ob, reducing, reducingQty, reducingQuoteQty)
+				if err != nil {
+					return fmt.Errorf("failed to execute order (id: %d): %w", reducing.ID(), err)
+				}
+				err = e.executeOrder(ob, executing, executingQty, executingQuoteQty)
+				if err != nil {
+					return fmt.Errorf("failed to execute order (id: %d): %w", executing.ID(), err)
+				}
 
 				// Update common market price
 				ob.updateMarketPrice(price)
@@ -224,21 +228,25 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 				quoteQty = ob.symbol.CalcQuoteQtyWithLimits(qty, price)
 			}
 
-			// Execute orders
-			reducingQty, reducingQuoteQty, err := e.executeOrder(ob, order, price, qty, quoteQty)
-			if err != nil {
-				return fmt.Errorf("failed to execute order (id: %d): %w", order.ID(), err)
-			}
-			executingQty, executingQuoteQty, err := e.executeOrder(ob, executingOrder, price, qty, quoteQty)
-			if err != nil {
-				return fmt.Errorf("failed to execute order (id: %d): %w", executingOrder.ID(), err)
-			}
-
-			// Call the trade handlers
+			// Calc quantities and call handlers
+			reducingQty, reducingQuoteQty := e.calcExecuteOrder(ob, order, qty, quoteQty)
+			executingQty, executingQuoteQty := e.calcExecuteOrder(ob, executingOrder, qty, quoteQty)
+			e.handler.OnExecuteOrder(ob, order.id, price, reducingQty, reducingQuoteQty)
+			e.handler.OnExecuteOrder(ob, executingOrder.id, price, executingQty, executingQuoteQty)
 			e.handler.OnExecuteTrade(
 				ob, makerOrderID, takerOrderID, price,
 				Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
 			)
+
+			// Execute orders
+			err := e.executeOrder(ob, order, reducingQty, reducingQuoteQty)
+			if err != nil {
+				return fmt.Errorf("failed to execute order (id: %d): %w", order.ID(), err)
+			}
+			err = e.executeOrder(ob, executingOrder, executingQty, executingQuoteQty)
+			if err != nil {
+				return fmt.Errorf("failed to execute order (id: %d): %w", executingOrder.ID(), err)
+			}
 
 			// Update common market price
 			ob.updateMarketPrice(price)

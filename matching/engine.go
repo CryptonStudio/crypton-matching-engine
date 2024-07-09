@@ -1,5 +1,7 @@
 package matching
 
+import "fmt"
+
 // Engine is used to manage the market with orders, price levels and order books.
 // Automatic orders matching can be enabled with EnableMatching() method or can be
 // manually performed with Match() method.
@@ -237,11 +239,15 @@ func (e *Engine) SetIndexPriceForOrderBook(symbolID uint32, price Uint, iterate 
 
 // AddOrder adds new order to the engine.
 func (e *Engine) AddOrder(order Order) error {
-
 	// Get the valid order book for the order
 	ob := e.OrderBook(order.symbolID)
 	if ob == nil {
 		return ErrOrderBookNotFound
+	}
+
+	// Change market slippage before validation
+	if order.Type() == OrderTypeMarket || order.Type() == OrderTypeStop || order.Type() == OrderTypeTrailingStop {
+		order.marketSlippage = Min(order.marketSlippage, ob.symbol.priceLimits.Max)
 	}
 
 	// Validate order parameters
@@ -249,8 +255,21 @@ func (e *Engine) AddOrder(order Order) error {
 		return err
 	}
 
-	task := func(ob *OrderBook) error {
+	// Prevent underflow with small digits (it must be covered by fees in usage)
+	if !order.available.IsMax() {
+		if order.side == OrderSideBuy {
+			order.AddAvailable(ob.symbol.lotSizeLimits.Step)
+		} else {
+			order.AddAvailable(ob.symbol.quoteLotSizeLimits.Step)
+		}
+	}
 
+	// Validate order parameters
+	if err := order.CheckLocked(&order); err != nil {
+		return err
+	}
+
+	task := func(ob *OrderBook) error {
 		// Add the corresponding order type
 		switch order.orderType {
 		case OrderTypeLimit:
@@ -271,6 +290,7 @@ func (e *Engine) AddOrder(order Order) error {
 
 // AddOrdersPair adds new orders pair (OCO orders) to the engine.
 // First order should be stop-limit order and second one should be limit order.
+// NOTE: lock all amount in limit order.
 func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 
 	// Get the valid order book for the order
@@ -284,6 +304,11 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 		return err
 	}
 	if err := limitOrder.Validate(ob); err != nil {
+		return err
+	}
+
+	// Check locked
+	if err := CheckLockedOCO(&stopLimitOrder, &limitOrder); err != nil {
 		return err
 	}
 
@@ -335,8 +360,17 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 
 			// Check if stop-limit order has been executed or activated
 			if stopLimitOrderFromOB == nil || stopLimitOrderFromOB.Activated() {
+				// check if order has been already deleted
+				limitOrderFromOB = ob.Order(limitOrderFromOB.id)
+				if limitOrderFromOB == nil {
+					return nil
+				}
+
 				// Cancel limit order
-				e.deleteOrder(ob, limitOrderFromOB, false)
+				err := e.deleteOrder(ob, limitOrderFromOB, false)
+				if err != nil {
+					return fmt.Errorf("failed to delete order (id: %d): %w", limitOrderFromOB.ID(), err)
+				}
 			}
 		}
 
@@ -348,76 +382,92 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 
 // AddTPSL adds new orders pair take-profit and stop-limit (OCO orders) to the engine.
 // The first order should be take-profit order and the second order should be stop-limit.
-func (e *Engine) AddTPSL(TP Order, SL Order) error {
+// NOTE: lock all amount in take-profit order.
+func (e *Engine) AddTPSL(tp Order, sl Order) error {
 	// Get the valid order book for the order
-	ob := e.OrderBook(TP.symbolID)
+	ob := e.OrderBook(tp.symbolID)
 	if ob == nil {
 		return ErrOrderBookNotFound
 	}
 
 	// Validate orders parameters
-	if err := TP.Validate(ob); err != nil {
+	if err := tp.Validate(ob); err != nil {
 		return err
 	}
-	if err := SL.Validate(ob); err != nil {
+	if err := sl.Validate(ob); err != nil {
+		return err
+	}
+
+	// Check locked
+	// Check locked
+	if err := CheckLockedTPSL(&tp, &sl); err != nil {
 		return err
 	}
 
 	// Link OCO orders to each other
-	TP.linkedOrderID = SL.id
-	SL.linkedOrderID = TP.id
+	tp.linkedOrderID = sl.id
+	sl.linkedOrderID = tp.id
 
 	task := func(ob *OrderBook) error {
 		// Check stop price mode
-		if TP.StopPriceMode() != SL.StopPriceMode() {
+		if tp.StopPriceMode() != sl.StopPriceMode() {
 			return ErrTPSLDifferentStopPriceMode
 		}
 
-		engineStopPrice := ob.GetStopPrice(TP.StopPriceMode())
+		engineStopPrice := ob.GetStopPrice(tp.StopPriceMode())
 
 		// Check engine price
-		if TP.IsBuy() {
-			if SL.stopPrice.LessThan(engineStopPrice) {
+		if tp.IsBuy() {
+			if sl.stopPrice.LessThan(engineStopPrice) {
 				return ErrBuySLStopPriceLessThanEnginePrice
 			}
-			if TP.stopPrice.GreaterThan(engineStopPrice) {
+			if tp.stopPrice.GreaterThan(engineStopPrice) {
 				return ErrBuyTPStopPriceGreaterThanEnginePrice
 			}
 		} else {
-			if SL.stopPrice.GreaterThan(engineStopPrice) {
+			if sl.stopPrice.GreaterThan(engineStopPrice) {
 				return ErrSellSLStopPriceGreaterThanEnginePrice
 			}
-			if TP.stopPrice.LessThan(engineStopPrice) {
+			if tp.stopPrice.LessThan(engineStopPrice) {
 				return ErrSellTPStopPriceLessThanEnginePrice
 			}
 		}
 
-		err := e.addStopLimitOrder(ob, TP, false)
+		err := e.addStopLimitOrder(ob, tp, false)
 		if err != nil {
 			return err
 		}
 
-		tpFromOB := ob.Order(TP.id)
+		tpFromOB := ob.Order(tp.id)
 
 		// Check if tp order has been executed or activated
 		if tpFromOB == nil || tpFromOB.Activated() {
 			// Imitation of order placing and cancellation of sl linked order
-			e.handler.OnAddOrder(ob, &SL)
-			e.handler.OnDeleteOrder(ob, &SL)
+			e.handler.OnAddOrder(ob, &sl)
+			e.handler.OnDeleteOrder(ob, &sl)
 		} else {
 			// Add sl order
-			err = e.addStopLimitOrder(ob, SL, false)
+			err = e.addStopLimitOrder(ob, sl, false)
 			if err != nil {
 				return err
 			}
 
 			// Find sl order in orderbook
-			slFromOB := ob.Order(SL.id)
+			slFromOB := ob.Order(sl.id)
 
 			// Check if sl order has been executed or activated
 			if slFromOB == nil || slFromOB.Activated() {
+				// check if order has been already deleted
+				tpFromOB = ob.Order(tp.id)
+				if tpFromOB == nil {
+					return nil
+				}
+
 				// Cancel tp linked order
-				e.deleteOrder(ob, tpFromOB, false)
+				err := e.deleteOrder(ob, tpFromOB, false)
+				if err != nil {
+					return fmt.Errorf("failed to delete order (id: %d): %w", tpFromOB.ID(), err)
+				}
 			}
 		}
 
@@ -429,7 +479,6 @@ func (e *Engine) AddTPSL(TP Order, SL Order) error {
 
 // ReduceOrder reduces the order by the given quantity.
 func (e *Engine) ReduceOrder(symbolID uint32, orderID uint64, quantity Uint) error {
-
 	// Get the valid order book for the order
 	ob := e.OrderBook(symbolID)
 	if ob == nil {
@@ -545,7 +594,10 @@ func (e *Engine) DeleteOrder(symbolID uint32, orderID uint64) error {
 		}
 
 		// Delete linked order if it exists
-		e.deleteLinkedOrder(ob, order, false)
+		err := e.deleteLinkedOrder(ob, order, false)
+		if err != nil {
+			return fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
+		}
 
 		// Delete the order
 		return e.deleteOrder(ob, order, false)
@@ -567,7 +619,6 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 	}
 
 	task := func(ob *OrderBook) (err error) {
-
 		// Get the order by given id
 		order := ob.Order(orderID)
 		if order == nil {
@@ -575,16 +626,15 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 		}
 
 		// Calculate the minimal possible order quantity to execute
-		orderQuantity := order.RestAvailableQuantity(order.price, ob.symbol.lotSizeLimits.Step)
+		orderQuantity := order.RestQuantity()
 		quantity = Min(quantity, orderQuantity)
 		quoteQuantity := quantity.Mul(order.price).Div64(UintPrecision)
 
 		// Call the corresponding handler
-		e.handler.OnExecuteOrder(ob, order, order.price, quantity)
+		e.handler.OnExecuteOrder(ob, order.id, order.price, quantity, quoteQuantity)
 
-		// Update the corresponding market price
-		ob.updateLastPrice(order.side, order.price)
-		ob.updateMatchingPrice(order.side, order.price)
+		// Update the common market price
+		ob.updateMarketPrice(order.price)
 
 		visible := order.VisibleQuantity()
 
@@ -633,11 +683,11 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 
 		// Automatic order matching
 		if e.matching {
-			e.match(ob)
+			err := e.match(ob)
+			if err != nil {
+				return fmt.Errorf("failed to match: %w", err)
+			}
 		}
-
-		// Reset matching price
-		ob.resetMatchingPrice()
 
 		return
 	}
@@ -666,16 +716,15 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 		}
 
 		// Calculate the minimal possible order quantity to execute
-		orderQuantity := order.RestAvailableQuantity(price, ob.symbol.lotSizeLimits.Step)
+		orderQuantity := order.RestQuantity()
 		quantity = Min(quantity, orderQuantity)
 		quoteQuantity := quantity.Mul(price).Div64(UintPrecision)
 
 		// Call the corresponding handler
-		e.handler.OnExecuteOrder(ob, order, price, quantity)
+		e.handler.OnExecuteOrder(ob, order.id, price, quantity, quoteQuantity)
 
-		// Update the corresponding market price
-		ob.updateLastPrice(order.side, price)
-		ob.updateMatchingPrice(order.side, price)
+		// Update the common market price
+		ob.updateMarketPrice(order.price)
 
 		visible := order.VisibleQuantity()
 
@@ -724,11 +773,11 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 
 		// Automatic order matching
 		if e.matching {
-			e.match(ob)
+			err := e.match(ob)
+			if err != nil {
+				return fmt.Errorf("failed to match: %w", err)
+			}
 		}
-
-		// Reset matching price
-		ob.resetMatchingPrice()
 
 		return
 	}
@@ -748,7 +797,10 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 // less than the top (best) ask price!
 func (e *Engine) Match() {
 	task := func(ob *OrderBook) error {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 		return nil
 	}
 	for i, c := 0, len(e.orderBooks); i < c; i++ {

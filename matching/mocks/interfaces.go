@@ -119,27 +119,27 @@ func (mr *MockHandlerMockRecorder) OnError(arg0, arg1 interface{}) *gomock.Call 
 }
 
 // OnExecuteOrder mocks base method.
-func (m *MockHandler) OnExecuteOrder(arg0 *matching.OrderBook, arg1 *matching.Order, arg2, arg3 matching.Uint) {
+func (m *MockHandler) OnExecuteOrder(arg0 *matching.OrderBook, arg1 uint64, arg2, arg3, arg4 matching.Uint) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnExecuteOrder", arg0, arg1, arg2, arg3)
+	m.ctrl.Call(m, "OnExecuteOrder", arg0, arg1, arg2, arg3, arg4)
 }
 
 // OnExecuteOrder indicates an expected call of OnExecuteOrder.
-func (mr *MockHandlerMockRecorder) OnExecuteOrder(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockHandlerMockRecorder) OnExecuteOrder(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnExecuteOrder", reflect.TypeOf((*MockHandler)(nil).OnExecuteOrder), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnExecuteOrder", reflect.TypeOf((*MockHandler)(nil).OnExecuteOrder), arg0, arg1, arg2, arg3, arg4)
 }
 
 // OnExecuteTrade mocks base method.
-func (m *MockHandler) OnExecuteTrade(arg0 *matching.OrderBook, arg1, arg2 *matching.Order, arg3, arg4 matching.Uint) {
+func (m *MockHandler) OnExecuteTrade(arg0 *matching.OrderBook, arg1, arg2 matching.OrderUpdate, arg3, arg4, arg5 matching.Uint) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnExecuteTrade", arg0, arg1, arg2, arg3, arg4)
+	m.ctrl.Call(m, "OnExecuteTrade", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 // OnExecuteTrade indicates an expected call of OnExecuteTrade.
-func (mr *MockHandlerMockRecorder) OnExecuteTrade(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+func (mr *MockHandlerMockRecorder) OnExecuteTrade(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnExecuteTrade", reflect.TypeOf((*MockHandler)(nil).OnExecuteTrade), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnExecuteTrade", reflect.TypeOf((*MockHandler)(nil).OnExecuteTrade), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 // OnUpdateOrder mocks base method.

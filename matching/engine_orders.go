@@ -1,10 +1,19 @@
 package matching
 
+import (
+	"fmt"
+)
+
 ////////////////////////////////////////////////////////////////
 // Adding new orders
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error {
+	// Check duplicate
+	if _, ok := ob.orders.Get(order.id); ok {
+		return ErrOrderDuplicate
+	}
+
 	// Create a new order
 	newOrder := e.allocator.GetOrder()
 	*newOrder = order
@@ -14,23 +23,22 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.matchLimitOrder(ob, newOrder)
+		err := e.matchLimitOrder(ob, newOrder)
+		if err != nil {
+			return fmt.Errorf("failed to match limit order: %w", err)
+		}
 	}
 
-	// Add a new order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
-	if !newOrder.IsExecuted() && !newOrder.IsIOC() && !newOrder.IsFOK() {
+	// Delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' and exit.
+	// If executed, handler has been already called.
+	if (newOrder.IsIOC() || newOrder.IsFOK()) && !newOrder.IsExecuted() {
+		e.handler.OnDeleteOrder(ob, newOrder)
+	}
 
-		// Insert the order
-		if ob.orders.Set(newOrder.id, newOrder); false {
-
-			// Call the corresponding handler
-			e.handler.OnDeleteOrder(ob, newOrder)
-
-			// Release the order
-			e.allocator.PutOrder(newOrder)
-
-			return ErrOrderDuplicate
-		}
+	// Add remaining order in order book for GTC
+	if newOrder.IsGTC() && !newOrder.IsExecuted() {
+		// Set order to internal order storage
+		ob.orders.Set(newOrder.id, newOrder)
 
 		// Add the new limit order into the order book
 		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
@@ -38,28 +46,31 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 			return err
 		}
 		e.updatePriceLevel(ob, priceLevelUpdate)
-
-	} else {
-		// Call the corresponding handler
-		e.handler.OnDeleteOrder(ob, newOrder)
 	}
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
 
 func (e *Engine) addMarketOrder(ob *OrderBook, order Order, recursive bool) error {
+	// Check duplicate
+	if _, ok := ob.orders.Get(order.id); ok {
+		return ErrOrderDuplicate
+	}
 
 	newOrder := order
 
+	newOrder.timeInForce = OrderTimeInForceIOC
+
 	// Call the corresponding handler
+	// Market order must be IOC
 	e.handler.OnAddOrder(ob, &newOrder)
 
 	// Automatic order matching
@@ -67,21 +78,27 @@ func (e *Engine) addMarketOrder(ob *OrderBook, order Order, recursive bool) erro
 		e.matchMarketOrder(ob, &newOrder)
 	}
 
-	// Call the corresponding handler
-	e.handler.OnDeleteOrder(ob, &newOrder)
+	if !newOrder.IsExecuted() {
+		// Call the corresponding handler
+		e.handler.OnDeleteOrder(ob, &newOrder)
+	}
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
 
 func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error {
+	// Check duplicate
+	if _, ok := ob.orders.Get(order.id); ok {
+		return ErrOrderDuplicate
+	}
 
 	// Create a new order
 	newOrder := e.allocator.GetOrder()
@@ -106,80 +123,46 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 	e.handler.OnAddOrder(ob, newOrder)
 
 	// Automatic order matching
-	if e.matching && !recursive {
-		// Check the market price
-		arbitrage := newOrder.stopPrice.Equals(marketPrice)
-		if arbitrage {
-
-			// Convert the stop order into the market order
-			newOrder.orderType = OrderTypeMarket
-			newOrder.price = NewZeroUint()
-			newOrder.stopPrice = NewZeroUint()
-			if newOrder.IsFOK() {
-				newOrder.timeInForce = OrderTimeInForceFOK
-			} else {
-				newOrder.timeInForce = OrderTimeInForceIOC
-			}
-
-			// Call the corresponding handler
-			e.handler.OnUpdateOrder(ob, newOrder)
-
-			// Match the market order
-			e.matchMarketOrder(ob, newOrder)
-
-			// Call the corresponding handler
-			e.handler.OnDeleteOrder(ob, newOrder)
-
-			// Automatic order matching
-			if e.matching && !recursive {
-				e.match(ob)
-			}
-
-			// Reset matching price
-			ob.resetMatchingPrice()
-
-			return nil
-		}
+	if !e.matching || recursive {
+		return nil
 	}
 
-	// Add a new order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
-	if !newOrder.IsExecuted() && !newOrder.IsIOC() && !newOrder.IsFOK() {
+	// Check the market price
+	arbitrage := newOrder.stopPrice.Equals(marketPrice)
+	if arbitrage {
+		// Convert the stop order into the market order
+		newOrder.orderType = OrderTypeMarket
+		newOrder.price = NewZeroUint()
+		newOrder.stopPrice = NewZeroUint()
 
-		// Insert the order
-		if ob.orders.Set(newOrder.id, newOrder); false {
+		// Market order must be IOC
+		newOrder.timeInForce = OrderTimeInForceIOC
 
-			// Call the corresponding handler
-			e.handler.OnDeleteOrder(ob, newOrder)
-
-			// Release the order
-			e.allocator.PutOrder(newOrder)
-
-			return ErrOrderDuplicate
-		}
-
-		// Add the new limit order into the order book
-		_, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
-		if err != nil {
-			return err
-		}
-
-	} else {
 		// Call the corresponding handler
-		e.handler.OnDeleteOrder(ob, newOrder)
+		e.handler.OnUpdateOrder(ob, newOrder)
+
+		// Match the market order
+		e.matchMarketOrder(ob, newOrder)
+
+		if !newOrder.IsExecuted() {
+			// Call the corresponding handler
+			e.handler.OnDeleteOrder(ob, newOrder)
+		}
 	}
 
-	// Automatic order matching
-	if e.matching && !recursive {
-		e.match(ob)
+	err := e.match(ob)
+	if err != nil {
+		return fmt.Errorf("failed to match: %w", err)
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
 
 func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) error {
+	// Check duplicate
+	if _, ok := ob.orders.Get(order.id); ok {
+		return ErrOrderDuplicate
+	}
 
 	// Create a new order
 	newOrder := e.allocator.GetOrder()
@@ -213,95 +196,155 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 	// Call the corresponding handler
 	e.handler.OnAddOrder(ob, newOrder)
 
-	// Automatic order matching
-	if e.matching && !recursive {
+	// Check the market price
+	arbitrage := newOrder.stopPrice.Equals(engineStopPrice)
+	if !arbitrage {
+		// Set order to internal order storage
+		ob.orders.Set(newOrder.id, newOrder)
 
-		// Check the market price
-		arbitrage := newOrder.stopPrice.Equals(engineStopPrice)
-		if arbitrage {
-			// Convert the stop-limit order into the limit order
-			newOrder.orderType = OrderTypeLimit
-			newOrder.stopPrice = NewZeroUint()
+		// Add the new limit order into the order book
+		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
+		if err != nil {
+			return err
+		}
+		e.updatePriceLevel(ob, priceLevelUpdate)
+	} else {
+		// delete linked order
+		e.deleteLinkedOrder(ob, newOrder, true)
 
-			// Call the corresponding handler
-			e.handler.OnUpdateOrder(ob, newOrder)
+		// Convert the stop-limit order into the limit order
+		newOrder.orderType = OrderTypeLimit
+		newOrder.stopPrice = NewZeroUint()
 
-			// Match the limit order
-			e.matchLimitOrder(ob, newOrder)
+		// Call the corresponding handler
+		e.handler.OnUpdateOrder(ob, newOrder)
 
-			// Add a new limit order or delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' order
-			if !newOrder.IsExecuted() && !newOrder.IsIOC() && !newOrder.IsFOK() {
-
-				// Insert the order
-				if ob.orders.Set(newOrder.id, newOrder); false {
-
-					// Call the corresponding handler
-					e.handler.OnDeleteOrder(ob, newOrder)
-
-					// Release the order
-					e.allocator.PutOrder(newOrder)
-
-					return ErrOrderDuplicate
-				}
-
-				// Add the new limit order into the order book
-				priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
-				if err != nil {
-					return err
-				}
-				e.updatePriceLevel(ob, priceLevelUpdate)
-			} else {
-				// Call the corresponding handler
-				e.handler.OnDeleteOrder(ob, newOrder)
+		// Automatic order matching
+		if e.matching && !recursive {
+			err := e.matchLimitOrder(ob, newOrder)
+			if err != nil {
+				return fmt.Errorf("failed to match limit order: %w", err)
 			}
+		}
 
-			// Automatic order matching
-			if e.matching && !recursive {
-				e.match(ob)
+		// Delete remaining part in case of 'Immediate-Or-Cancel'/'Fill-Or-Kill' and exit.
+		// If executed, handler has been already called.
+		if (newOrder.IsIOC() || newOrder.IsFOK()) && !newOrder.IsExecuted() {
+			e.handler.OnDeleteOrder(ob, newOrder)
+		}
+
+		// Add remaining order in order book for GTC
+		if newOrder.IsGTC() && !newOrder.IsExecuted() {
+			// Set order to internal order storage
+			ob.orders.Set(newOrder.id, newOrder)
+
+			// Add the new limit order into the order book
+			priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
+			if err != nil {
+				return err
 			}
-
-			// Reset matching price
-			ob.resetMatchingPrice()
-
-			return nil
+			e.updatePriceLevel(ob, priceLevelUpdate)
 		}
 	}
 
-	// Add a new order
-	if !newOrder.IsExecuted() {
+	// Automatic order matching
+	if e.matching && !recursive {
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
+	}
+	return nil
+}
 
-		// Insert the order
-		if ob.orders.Set(newOrder.id, newOrder); false {
+////////////////////////////////////////////////////////////////
+// Executing orders
+////////////////////////////////////////////////////////////////
 
-			// Call the corresponding handler
-			e.handler.OnDeleteOrder(ob, newOrder)
+// executeOrder processes the fact of order execution
+func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Uint) error {
+	// Decrease the order available quantity
+	if order.IsBuy() {
+		order.SubAvailable(quoteQty)
+	} else {
+		order.SubAvailable(qty)
+	}
 
-			// Release the order
-			e.allocator.PutOrder(newOrder)
+	// Increase the order executed quantity
+	order.AddExecutedQuantity(qty)
+	order.AddExecutedQuoteQuantity(quoteQty)
 
-			return ErrOrderDuplicate
+	// Check and delete linked orders
+	err := e.deleteLinkedOrder(ob, order, true)
+	if err != nil {
+		return fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
+	}
+
+	// Check market mode
+	if order.marketQuoteMode {
+		order.SubRestQuoteQuantity(quoteQty)
+		if !order.IsExecuted() {
+			e.handler.OnUpdateOrder(ob, order)
+		} else {
+			e.handler.OnDeleteOrder(ob, order)
+			e.deleteOrder(ob, order, true)
 		}
 
-		// Add the new limit order into the order book
-		_, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
+		return nil
+	}
+
+	// Reduce the order rest quantities
+	visible := order.VisibleQuantity()
+	order.SubRestQuantity(qty)
+	visible = visible.Sub(order.VisibleQuantity())
+
+	if !order.IsExecuted() {
+		e.handler.OnUpdateOrder(ob, order)
+	} else {
+		e.handler.OnDeleteOrder(ob, order)
+	}
+
+	if order.priceLevel != nil {
+		// Reduce the order in the order book
+		priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, qty, visible)
 		if err != nil {
 			return err
 		}
 
-	} else {
-		// Call the corresponding handler
-		e.handler.OnDeleteOrder(ob, newOrder)
+		e.updatePriceLevel(ob, priceLevelUpdate)
 	}
 
-	// Automatic order matching
-	if e.matching && !recursive {
-		e.match(ob)
-	}
+	// Delete the empty order
+	if order.IsExecuted() {
+		// Erase the order
+		ob.orders.Delete(order.id)
 
-	// Reset matching price
-	ob.resetMatchingPrice()
+		// Release the order
+		e.allocator.PutOrder(order)
+	}
 
 	return nil
+}
+
+func (e *Engine) calcExecuteOrder(ob *OrderBook, order *Order, quantity Uint, quoteQuantity Uint) (qty Uint, quoteQty Uint) {
+	// Redefine for actually executed
+	qty, quoteQty = quantity, quoteQuantity
+
+	// Check market mode,
+	// check step (we delete here all remainders, so we don't need to check when match).
+	if order.marketQuoteMode {
+		if order.restQuoteQuantity.Sub(quoteQty).LessThan(ob.symbol.quoteLotSizeLimits.Step) {
+			quoteQty = order.restQuoteQuantity
+		}
+		return
+	}
+
+	// Check step (we delete here all remainders, so we don't need to check when match).
+	if order.restQuantity.Sub(qty).LessThan(ob.symbol.lotSizeLimits.Step) {
+		qty = order.restQuantity
+	}
+
+	return
 }
 
 ////////////////////////////////////////////////////////////////
@@ -309,35 +352,33 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursive bool) error {
-
 	// Calculate the minimal possible order quantity to reduce
 	quantity = Min(quantity, order.restQuantity)
 
 	// Reduce the order rest quantity
 	visible := order.VisibleQuantity()
-	order.restQuantity = order.restQuantity.Sub(quantity)
+	order.SubRestQuantity(quantity)
 	visible = visible.Sub(order.VisibleQuantity())
 
 	// Call the corresponding handler
 	if !order.IsExecuted() {
 		e.handler.OnUpdateOrder(ob, order)
-
 	} else {
 		e.handler.OnDeleteOrder(ob, order)
 	}
 
-	// Reduce the order in the order book
-	priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, quantity, visible)
-	if err != nil {
-		return err
-	}
-	if order.IsLimit() {
+	if order.priceLevel != nil {
+		// Reduce the order in the order book
+		priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, quantity, visible)
+		if err != nil {
+			return err
+		}
+
 		e.updatePriceLevel(ob, priceLevelUpdate)
 	}
 
 	// Delete the empty order
 	if order.IsExecuted() {
-
 		// Erase the order
 		ob.orders.Delete(order.id)
 
@@ -347,11 +388,11 @@ func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursi
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
@@ -361,7 +402,6 @@ func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursi
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuantity Uint, additionalAmountToLock Uint, mitigate bool, recursive bool) error {
-
 	// Delete the order from the order book
 	priceLevelUpdate, err := ob.deleteOrder(ob.treeForOrder(order), order)
 	if err != nil {
@@ -375,13 +415,13 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 	order.price = newPrice
 	order.quantity = newQuantity
 	order.restQuantity = newQuantity
-	order.available = order.available.Add(additionalAmountToLock)
+	order.AddAvailable(additionalAmountToLock)
 
 	// In-Flight Mitigation (IFM)
 	if mitigate {
 		// This calculation has the goal of preventing orders from being overfilled
 		if newQuantity.GreaterThan(order.executedQuantity) {
-			order.restQuantity = newQuantity.Sub(order.executedQuantity)
+			order.SubRestQuantity(order.executedQuantity)
 		} else {
 			order.restQuantity = NewZeroUint()
 		}
@@ -395,12 +435,14 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 
 		// Automatic order matching
 		if e.matching && !recursive {
-			e.matchLimitOrder(ob, order)
+			err := e.matchLimitOrder(ob, order)
+			if err != nil {
+				return fmt.Errorf("failed to match limit order: %w", err)
+			}
 		}
 
 		// Add non empty order into the order book
 		if !order.IsExecuted() {
-
 			// Add the modified order into the order book
 			priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(order), order)
 			if err != nil {
@@ -415,7 +457,6 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 
 	// Delete the empty order
 	if order.IsExecuted() {
-
 		// Call the corresponding handler
 		e.handler.OnDeleteOrder(ob, order)
 
@@ -428,11 +469,11 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
@@ -442,7 +483,6 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPrice Uint, newQuantity Uint, recursive bool) error {
-
 	// Delete the old order from the order book
 	priceLevelUpdate, err := ob.deleteOrder(ob.treeForOrder(order), order)
 	if err != nil {
@@ -471,23 +511,16 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.matchLimitOrder(ob, order)
+		err := e.matchLimitOrder(ob, order)
+		if err != nil {
+			return fmt.Errorf("failed to match limit order: %w", err)
+		}
 	}
 
 	// Add the order
 	if !order.IsExecuted() {
-
 		// Insert the order
-		if ob.orders.Set(order.id, order); false {
-
-			// Call the corresponding handler
-			e.handler.OnDeleteOrder(ob, order)
-
-			// Release the order
-			e.allocator.PutOrder(order)
-
-			return ErrOrderDuplicate
-		}
+		ob.orders.Set(order.id, order)
 
 		// Add the modified order into the order book
 		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(order), order)
@@ -499,7 +532,6 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 		}
 
 	} else {
-
 		// Call the corresponding handler
 		e.handler.OnDeleteOrder(ob, order)
 
@@ -509,11 +541,11 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
@@ -523,13 +555,13 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 ////////////////////////////////////////////////////////////////
 
 func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error {
-
 	// Delete the order from the order book
-	priceLevelUpdate, err := ob.deleteOrder(ob.treeForOrder(order), order)
-	if err != nil {
-		return err
-	}
-	if order.IsLimit() {
+	if order.priceLevel != nil {
+		priceLevelUpdate, err := ob.deleteOrder(ob.treeForOrder(order), order)
+		if err != nil {
+			return err
+		}
+
 		e.updatePriceLevel(ob, priceLevelUpdate)
 	}
 
@@ -544,11 +576,11 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error 
 
 	// Automatic order matching
 	if e.matching && !recursive {
-		e.match(ob)
+		err := e.match(ob)
+		if err != nil {
+			return fmt.Errorf("failed to match: %w", err)
+		}
 	}
-
-	// Reset matching price
-	ob.resetMatchingPrice()
 
 	return nil
 }
@@ -561,11 +593,54 @@ func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, recursive bool) 
 
 	linkedOrder := ob.Order(order.linkedOrderID)
 	if linkedOrder != nil {
-		err := e.deleteOrder(ob, linkedOrder, recursive)
-		if err != nil {
-			return err
+		// transfer available
+		if !linkedOrder.available.IsZero() {
+			order.AddAvailable(linkedOrder.available)
 		}
+
+		// reset link
+		order.linkedOrderID = 0
+
+		return e.deleteOrder(ob, linkedOrder, recursive)
 	}
 
 	return nil
+}
+
+// calcExecutingForTaker calculate quantities for taker order (it can be market)
+func calcExecutingForTaker(taker *Order, makerPrice Uint) (qty Uint, quoteQty Uint) {
+	// First check cases with enough available (already checked when adding)
+	if taker.Type() != OrderTypeMarket || (taker.Side() == OrderSideSell && !taker.marketQuoteMode) {
+		qty = taker.RestQuantity()
+		quoteQty = qty.Mul(makerPrice).Div64(UintPrecision)
+		return
+	}
+	if taker.Side() == OrderSideBuy && taker.marketQuoteMode {
+		quoteQty = taker.RestQuoteQuantity()
+		// Reminder must be checked in next iteration of loop and deleted with order
+		qty, _ = quoteQty.Mul64(UintPrecision).QuoRem(makerPrice)
+		return
+	}
+
+	// With available check for Sell Market Quote
+	if taker.Side() == OrderSideSell && taker.marketQuoteMode {
+		quoteQty = taker.RestQuoteQuantity()
+		// Reminder must be checked in next iteration of loop and deleted with order
+		qty, _ = quoteQty.Mul64(UintPrecision).QuoRem(makerPrice)
+		// Available is already in base asset
+		if taker.available.LessThan(qty) {
+			qty = taker.available
+			quoteQty = qty.Mul(makerPrice).Div64(UintPrecision)
+		}
+
+		return
+	}
+
+	// With available check for Buy Market Base
+	// Available already in quote asset
+	quoteQty = Min(taker.restQuantity.Mul(makerPrice).Div64(UintPrecision), taker.available)
+	// Reminder must be checked in next iteration of loop and deleted with order
+	qty, _ = quoteQty.Mul64(UintPrecision).QuoRem(makerPrice)
+
+	return
 }

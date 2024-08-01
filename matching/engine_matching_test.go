@@ -1480,12 +1480,16 @@ func TestOCOOrders(t *testing.T) {
 			ob, gomock.Any(), gomock.Any(), secondTrade.limitPrice, secondTrade.quantity,
 			secondTrade.limitPrice.Mul(secondTrade.quantity).Div64(matching.UintPrecision)).Do(
 			func(orderBook *matching.OrderBook, makerOrderUpdate matching.OrderUpdate, takerOrderUpdate matching.OrderUpdate, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
-				makerOrderUpdate.Quantity.Equals(firstTrade.quantity)
-				takerOrderUpdate.Quantity.Equals(firstTrade.quantity)
+				require.True(t, makerOrderUpdate.Quantity.Equals(firstTrade.quantity),
+					"%s != %s", makerOrderUpdate.Quantity.ToFloatString(), firstTrade.quantity.ToFloatString())
+				require.True(t, takerOrderUpdate.Quantity.Equals(firstTrade.quantity),
+					"%s != %s", takerOrderUpdate.Quantity.ToFloatString(), firstTrade.quantity.ToFloatString())
 
 				quoteQty := firstTrade.quantity.Mul(firstTrade.price).Div64(matching.UintPrecision)
-				makerOrderUpdate.QuoteQuantity.Equals(quoteQty)
-				takerOrderUpdate.QuoteQuantity.Equals(quoteQty)
+				require.True(t, makerOrderUpdate.QuoteQuantity.Equals(quoteQty),
+					"%s != %s", makerOrderUpdate.QuoteQuantity.ToFloatString(), quoteQty.ToFloatString())
+				require.True(t, takerOrderUpdate.QuoteQuantity.Equals(quoteQty),
+					"%s != %s", takerOrderUpdate.QuoteQuantity.ToFloatString(), quoteQty.ToFloatString())
 
 				t.Logf("trade qty: %s,maker executed: %d, taker executed: %d",
 					quantity.ToFloatString(),

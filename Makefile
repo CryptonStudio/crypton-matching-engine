@@ -16,8 +16,5 @@ cover:
 	go tool cover -html=coverage.out
 	rm coverage.out
 
-fuzz-tif:
-	cd matching && go clean -fuzzcache && go test -fuzz FuzzLimitTimeInForce
-
-fuzz-all:
+fuzz:
 	cd matching && go clean -fuzzcache && go test -fuzz FuzzAllOrders

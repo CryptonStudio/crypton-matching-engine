@@ -26,7 +26,7 @@ func FuzzAllOrders(f *testing.F) {
 }
 
 func TestFailedExample(t *testing.T) {
-	testAllOrders(t, []byte("0\x000a\x02\x0000010\x00\x01\x02\x01\x010000000000\x02\x01\x01\x010000000000\x03\x01\x01\x010000000000"))
+	testAllOrders(t, []byte("01\x010100100\x01\x02\x01\x01000\x010000\x0300\x010000\xfd\x01\x01\x00000\x010000\x0310\x030002"))
 }
 
 func testAllOrders(t *testing.T, a []byte) {
@@ -63,7 +63,7 @@ func testAllOrders(t *testing.T, a []byte) {
 		if recover() != nil {
 			t.Logf("stacktrace from panic:\n%s\n", string(debug.Stack()))
 			t.Log("engine set:\n")
-			t.Log(data.String() + "n")
+			t.Log(data.String() + "\n")
 			t.Fail()
 		}
 	}()

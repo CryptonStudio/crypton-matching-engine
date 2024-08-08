@@ -17,4 +17,4 @@ cover:
 	rm coverage.out
 
 fuzz:
-	cd matching && go clean -fuzzcache && go test -fuzz FuzzAllOrders
+	cd matching/tests && go clean -fuzzcache && go test -fuzz FuzzAllOrders

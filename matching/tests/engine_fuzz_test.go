@@ -51,9 +51,12 @@ func testAllOrders(t *testing.T, a []byte) {
 
 	_, err = engine.AddOrderBook(data.symbol,
 		matching.NewUint(0),
-		matching.StopPriceModeConfig{Market: true},
+		matching.StopPriceModeConfig{Market: true, Mark: true, Index: true},
 	)
 	require.NoError(t, err)
+
+	engine.SetIndexPriceForOrderBook(data.symbol.ID(), data.startIndexPrice, false) //nolint:errcheck
+	engine.SetMarkPriceForOrderBook(data.symbol.ID(), data.startMarkPrice, false)   //nolint:errcheck
 
 	defer func() {
 		// recover from panic if one occurred. Set err to nil otherwise.
@@ -75,8 +78,10 @@ func testAllOrders(t *testing.T, a []byte) {
 			switch {
 			case oo.orderType == orderTypeOCO:
 				err = engine.AddOrdersPair(oo.orders[0], oo.orders[1])
-			case oo.orderType == orderTypeTPSL:
+			case oo.orderType == orderTypeTPSLLimit:
 				err = engine.AddTPSL(oo.orders[0], oo.orders[1])
+			case oo.orderType == orderTypeTPSLMarket:
+				err = engine.AddTPSLMarket(oo.orders[0], oo.orders[1])
 			}
 		}
 
@@ -97,17 +102,28 @@ func testAllOrders(t *testing.T, a []byte) {
 			t.FailNow()
 		}
 	}
+
+	engine.SetIndexPriceForOrderBook(data.symbol.ID(), data.endIndexPrice, true) //nolint:errcheck
+	engine.SetMarkPriceForOrderBook(data.symbol.ID(), data.endMarkPrice, true)   //nolint:errcheck
 }
 
 // Data parsing:
 // 2 bytes for 'float' numbers
 // 1 byte for enums
-const orderTypeOCO matching.OrderType = 255
-const orderTypeTPSL matching.OrderType = 254
+
+const (
+	orderTypeOCO        matching.OrderType = 255
+	orderTypeTPSLLimit  matching.OrderType = 254
+	orderTypeTPSLMarket matching.OrderType = 253
+)
 
 type allDataForFuzz struct {
-	symbol         matching.Symbol
-	ordersSequence []sequenceItem
+	symbol          matching.Symbol
+	startMarkPrice  matching.Uint
+	startIndexPrice matching.Uint
+	endMarkPrice    matching.Uint
+	endIndexPrice   matching.Uint
+	ordersSequence  []sequenceItem
 }
 
 type sequenceItem struct {
@@ -116,11 +132,26 @@ type sequenceItem struct {
 }
 
 func (a allDataForFuzz) validate() error {
+	// check TPSL
 	if len(a.ordersSequence) > 0 {
-		if a.ordersSequence[0].orderType == orderTypeTPSL {
+		if a.ordersSequence[0].orderType == orderTypeTPSLLimit ||
+			a.ordersSequence[0].orderType == orderTypeTPSLMarket {
 			return errors.New("TPSL order should be second record")
 		}
 	}
+	// check sides
+	// var sellCount, buyCount int
+	// for i := range a.ordersSequence {
+	// 	switch a.ordersSequence[i].orders[0].Side() {
+	// 	case matching.OrderSideBuy:
+	// 		buyCount++
+	// 	case matching.OrderSideSell:
+	// 		sellCount++
+	// 	}
+	// }
+	// if sellCount == 0 || buyCount == 0 {
+	// 	return errors.New("all order on one side")
+	// }
 	return nil
 }
 
@@ -133,6 +164,12 @@ func (a allDataForFuzz) String() string {
 		a.symbol.LotSizeLimits().Min.ToFloatString(),
 		a.symbol.LotSizeLimits().Max.ToFloatString(),
 		a.symbol.LotSizeLimits().Step.ToFloatString(),
+	))
+	lines = append(lines, fmt.Sprintf("prices: start.mark=%s, start.index=%s, end.mark=%s, end.index=%s",
+		a.startMarkPrice.ToFloatString(),
+		a.startIndexPrice.ToFloatString(),
+		a.endMarkPrice.ToFloatString(),
+		a.endIndexPrice.ToFloatString(),
 	))
 	for _, oo := range a.ordersSequence {
 		if len(oo.orders) == 2 {
@@ -157,49 +194,67 @@ func (a allDataForFuzz) String() string {
 	return strings.Join(lines, "\n")
 }
 
-func uint16Uint(v uint16) matching.Uint {
+func u16U(v uint16) matching.Uint {
 	return matching.NewUint(uint64(v)).Mul64(matching.UintPrecision).Div64(1000)
 }
 
-type symbolConfig struct {
-	PriceMin  uint16
-	PriceMax  uint16
-	PriceStep uint16
-	LotMin    uint16
-	LotMax    uint16
-	LotStep   uint16
+func u8U(v uint8) matching.Uint {
+	return matching.NewUint(uint64(v)).Mul64(matching.UintPrecision).Div64(100)
 }
 
-const symbolConfigSize = int(unsafe.Sizeof(symbolConfig{}))
+type stateConfig struct {
+	PriceMin        uint8
+	PriceMax        uint8
+	PriceStep       uint8
+	LotMin          uint8
+	LotMax          uint8
+	LotStep         uint8
+	StartMarkPrice  uint8
+	StartIndexPrice uint8
+	EndMarkPrice    uint8
+	EndIndexPrice   uint8
+}
+
+const stateConfigSize = int(unsafe.Sizeof(stateConfig{}))
 
 type orderData struct {
-	Type        matching.OrderType
-	Side        matching.OrderSide
-	TIF         matching.OrderTimeInForce
-	ModQuote    uint8
-	Price       uint16
-	Quantity    uint16
-	StopPrice   uint16
-	Slippage    uint16
-	Visible     uint16
-	TpStopPrice uint16
-	TpPrice     uint16
-	SlStopPrice uint16
-	SlPrice     uint16
+	Type      matching.OrderType
+	Side      matching.OrderSide
+	TIF       matching.OrderTimeInForce
+	ModQuote  uint8
+	Price     uint8
+	Quantity  uint8
+	StopPrice uint8
+	PriceMode matching.StopPriceMode
+	Slippage  uint8
+	Visible   uint8
+	// TPSL limit part
+	TpStopPrice uint8
+	TpPrice     uint8
+	TpMode      matching.StopPriceMode
+	SlStopPrice uint8
+	SlPrice     uint8
+	SlMode      matching.StopPriceMode
+	// TPSL market part
+	// stop prices from above, mod quote from above
+	TpQuantity uint8
+	SlQuantity uint8
+	TpSlippage uint8
+	SlSlippage uint8
 }
 
 const orderDataSize = int(unsafe.Sizeof(orderData{}))
 
 func parseBytesToData(inp []byte) (allDataForFuzz, error) {
-	if len(inp) <= symbolConfigSize {
+	if len(inp) <= stateConfigSize {
 		return allDataForFuzz{}, errors.New("invalid input length")
 	}
-	if (len(inp)-symbolConfigSize)%orderDataSize != 0 {
+	if (len(inp)-stateConfigSize)%orderDataSize != 0 {
 		return allDataForFuzz{}, errors.New("invalid input length")
 	}
 
 	// 2 orders at least
-	if (len(inp)-symbolConfigSize)/orderDataSize < 2 {
+	if (len(inp)-stateConfigSize)/orderDataSize < 2 {
 		return allDataForFuzz{}, errors.New("need more orders")
 	}
 
@@ -207,7 +262,7 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 
 	buf := bytes.NewReader(inp)
 
-	var cfg symbolConfig
+	var cfg stateConfig
 	err := binary.Read(buf, binary.BigEndian, &cfg)
 	if err != nil {
 		return allDataForFuzz{}, err
@@ -219,22 +274,27 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 		symbolID,
 		"a",
 		matching.Limits{
-			Min:  uint16Uint(cfg.PriceMin),
-			Max:  uint16Uint(cfg.PriceMax),
-			Step: uint16Uint(cfg.PriceStep),
+			Min:  u8U(cfg.PriceMin),
+			Max:  u8U(cfg.PriceMax),
+			Step: u8U(cfg.PriceStep),
 		},
 		matching.Limits{
-			Min:  uint16Uint(cfg.LotMin),
-			Max:  uint16Uint(cfg.LotMax),
-			Step: uint16Uint(cfg.LotStep),
+			Min:  u8U(cfg.LotMin),
+			Max:  u8U(cfg.LotMax),
+			Step: u8U(cfg.LotStep),
 		},
 	)
 	if !result.symbol.Valid() {
 		return allDataForFuzz{}, matching.ErrInvalidSymbol
 	}
 
+	result.startIndexPrice = u8U(cfg.StartIndexPrice)
+	result.startMarkPrice = u8U(cfg.StartMarkPrice)
+	result.endIndexPrice = u8U(cfg.EndIndexPrice)
+	result.endMarkPrice = u8U(cfg.EndMarkPrice)
+
 	id := uint64(0)
-	for j := symbolConfigSize; j < len(inp); j += orderDataSize {
+	for j := stateConfigSize; j < len(inp); j += orderDataSize {
 		id++
 		var dt orderData
 		err := binary.Read(buf, binary.BigEndian, &dt)
@@ -244,12 +304,24 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 
 		if !(dt.Type == matching.OrderTypeLimit || dt.Type == matching.OrderTypeStopLimit ||
 			dt.Type == matching.OrderTypeMarket || dt.Type == matching.OrderTypeStop ||
-			dt.Type == orderTypeOCO || dt.Type == orderTypeTPSL) {
+			dt.Type == orderTypeOCO || dt.Type == orderTypeTPSLLimit || dt.Type == orderTypeTPSLMarket) {
 			return allDataForFuzz{}, matching.ErrInvalidOrderType
 		}
 
 		if !(dt.Side == matching.OrderSideBuy || dt.Side == matching.OrderSideSell) {
 			return allDataForFuzz{}, matching.ErrInvalidOrderSide
+		}
+
+		if !(dt.PriceMode == matching.StopPriceModeMarket || dt.PriceMode == matching.StopPriceModeIndex || dt.PriceMode == matching.StopPriceModeMark) {
+			return allDataForFuzz{}, errors.New("invalid price mode")
+		}
+
+		if !(dt.TpMode == matching.StopPriceModeMarket || dt.TpMode == matching.StopPriceModeIndex || dt.TpMode == matching.StopPriceModeMark) {
+			return allDataForFuzz{}, errors.New("invalid price mode")
+		}
+
+		if !(dt.SlMode == matching.StopPriceModeMarket || dt.SlMode == matching.StopPriceModeIndex || dt.SlMode == matching.StopPriceModeMark) {
+			return allDataForFuzz{}, errors.New("invalid price mode")
 		}
 
 		if !(dt.TIF == matching.OrderTimeInForceGTC || dt.TIF == matching.OrderTimeInForceIOC ||
@@ -262,15 +334,11 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			return allDataForFuzz{}, errors.New("invalid mod quote")
 		}
 
-		price := uint16Uint(dt.Price)
-		quantity := uint16Uint(dt.Quantity)
-		stopPrice := uint16Uint(dt.StopPrice)
-		slippage := uint16Uint(dt.Slippage)
-		visible := uint16Uint(dt.Visible)
-		tpStopPrice := uint16Uint(dt.TpStopPrice)
-		tpPrice := uint16Uint(dt.TpPrice)
-		slStopPrice := uint16Uint(dt.SlStopPrice)
-		slPrice := uint16Uint(dt.SlPrice)
+		price := u8U(dt.Price)
+		quantity := u8U(dt.Quantity)
+		stopPrice := u8U(dt.StopPrice)
+		slippage := u8U(dt.Slippage)
+		visible := u8U(dt.Visible)
 
 		if quantity.IsZero() {
 			return allDataForFuzz{}, matching.ErrInvalidOrderQuantity
@@ -295,34 +363,21 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{matching.NewStopLimitOrder(
-					symbolID, id, dt.Side, dt.TIF, price, matching.StopPriceModeMarket, stopPrice, quantity, visible, restLocked,
+					symbolID, id, dt.Side, dt.TIF, price, dt.PriceMode, stopPrice, quantity, visible, restLocked,
 				)}})
 		case matching.OrderTypeMarket:
-			var q, qq matching.Uint
-			if dt.ModQuote == 0 {
-				q = quantity
-			} else {
-				qq = quantity
-			}
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{matching.NewMarketOrder(
-					symbolID, id, dt.Side, matching.OrderTimeInForceIOC, q,
-					qq, slippage, restLocked,
+					symbolID, id, dt.Side, matching.OrderTimeInForceIOC, modQQ(dt.ModQuote, 0, quantity),
+					modQQ(dt.ModQuote, 1, quantity), slippage, restLocked,
 				)}})
 		case matching.OrderTypeStop:
-			var q, qq matching.Uint
-			if dt.ModQuote == 0 {
-				q = quantity
-			} else {
-				qq = quantity
-			}
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
-				[]matching.Order{matching.NewStopOrder(
-					symbolID, id, dt.Side, matching.OrderTimeInForceIOC,
-					matching.StopPriceModeMarket, stopPrice, q,
-					qq, slippage, restLocked,
+				[]matching.Order{matching.NewStopOrder(symbolID, id, dt.Side, matching.OrderTimeInForceIOC,
+					dt.PriceMode, stopPrice, modQQ(dt.ModQuote, 0, quantity),
+					modQQ(dt.ModQuote, 1, quantity), slippage, restLocked,
 				)}})
 		case orderTypeOCO:
 			restLocked := quantity
@@ -336,30 +391,17 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{
-					matching.NewStopLimitOrder(
-						symbolID,
-						id1,
-						dt.Side,
-						dt.TIF,
-						price,
-						matching.StopPriceModeMarket,
-						stopPrice,
-						quantity,
-						visible,
-						matching.NewZeroUint(),
+					matching.NewStopLimitOrder(symbolID, id1, dt.Side, dt.TIF, price,
+						dt.PriceMode, stopPrice,
+						quantity, visible, matching.NewZeroUint(),
 					),
-					matching.NewLimitOrder(
-						symbolID,
-						id2,
-						dt.Side,
-						dt.TIF,
-						price,
-						quantity,
-						visible,
-						restLocked,
+					matching.NewLimitOrder(symbolID, id2, dt.Side, dt.TIF, price,
+						quantity, visible, restLocked,
 					),
 				}})
-		case orderTypeTPSL:
+		case orderTypeTPSLLimit:
+			tpPrice := u8U(dt.TpPrice)
+			slPrice := u8U(dt.SlPrice)
 			restLocked := quantity
 			if dt.Side == matching.OrderSideBuy {
 				restLocked = matching.Max(quantity.Mul(tpPrice).Div64(matching.UintPrecision), quantity.Mul(slPrice).Div64(matching.UintPrecision))
@@ -371,29 +413,35 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{
-					matching.NewStopLimitOrder(
-						symbolID,
-						id1,
-						dt.Side,
-						dt.TIF,
-						tpPrice,
-						matching.StopPriceModeMarket,
-						tpStopPrice,
-						quantity,
-						visible,
-						restLocked,
+					matching.NewStopLimitOrder(symbolID, id1, dt.Side, dt.TIF, tpPrice,
+						dt.TpMode, u8U(dt.TpStopPrice),
+						quantity, visible, restLocked,
 					),
-					matching.NewStopLimitOrder(
-						symbolID,
-						id2,
-						dt.Side,
-						dt.TIF,
-						slPrice,
-						matching.StopPriceModeMarket,
-						slStopPrice,
-						quantity,
-						visible,
-						matching.NewZeroUint(),
+					matching.NewStopLimitOrder(symbolID, id2, dt.Side, dt.TIF, slPrice,
+						dt.SlMode, u8U(dt.SlStopPrice),
+						quantity, visible, matching.NewZeroUint(),
+					),
+				}})
+		case orderTypeTPSLMarket:
+			restLocked := matching.Max(u8U(dt.TpQuantity), u8U(dt.SlQuantity))
+
+			id1 := id
+			id++
+			id2 := id
+			result.ordersSequence = append(result.ordersSequence, sequenceItem{
+				dt.Type,
+				[]matching.Order{
+					matching.NewStopOrder(symbolID, id1, dt.Side, matching.OrderTimeInForceIOC,
+						dt.TpMode, u8U(dt.TpStopPrice),
+						modQQ(dt.ModQuote, 0, u8U(dt.TpQuantity)),
+						modQQ(dt.ModQuote, 1, u8U(dt.TpQuantity)),
+						u8U(dt.TpSlippage), restLocked,
+					),
+					matching.NewStopOrder(symbolID, id2, dt.Side, matching.OrderTimeInForceIOC,
+						dt.SlMode, u8U(dt.SlStopPrice),
+						modQQ(dt.ModQuote, 0, u8U(dt.SlQuantity)),
+						modQQ(dt.ModQuote, 1, u8U(dt.SlQuantity)),
+						u8U(dt.SlSlippage), matching.NewZeroUint(),
 					),
 				}})
 		}
@@ -404,4 +452,11 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 	}
 
 	return result, nil
+}
+
+func modQQ(mode, req uint8, q matching.Uint) matching.Uint {
+	if mode == req {
+		return q
+	}
+	return matching.NewZeroUint()
 }

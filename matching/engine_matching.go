@@ -148,8 +148,11 @@ func (e *Engine) matchMarketOrder(ob *OrderBook, order *Order) error {
 			return nil
 		}
 
+		// Get top price from asks and max price for symbol.
 		topPrice = ob.TopAsk().Value().Price()
-		maxPrice := ob.symbol.priceLimits.Max
+		maxPrice := NewMaxUint()
+
+		// Overflow protection for topPrice.Add(order.marketSlippage).
 		if topPrice.GreaterThan(maxPrice.Sub(order.marketSlippage)) {
 			order.price = maxPrice
 		} else {

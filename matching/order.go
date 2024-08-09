@@ -417,9 +417,7 @@ func (o *Order) Validate(ob *OrderBook) error {
 
 // CheckLocked checks locked quantity,
 // all combinations of orders need exact minimum locked amount,
-// except Buy Market Base, Sell Market Quote,
-// Buy Stop Base, Sell Stop quote (will be executed for locked amount),
-// also some orders have already locked, e.g. when they have linked order.
+// except Buy Market Base, Sell Market Quote.
 func (o *Order) CheckLocked(order *Order) error {
 	var needLocked Uint
 	// Sell Limit, Sell Stop-limit, Sell Market, Sell Stop
@@ -472,6 +470,27 @@ func CheckLockedTPSL(tp *Order, sl *Order) error {
 		price := Max(tp.price, sl.price)
 		needLocked = tp.quantity.Mul(price).Div64(UintPrecision)
 	}
+
+	if tp.available.LessThan(needLocked) {
+		return ErrNotEnoughLockedAmount
+	}
+
+	return nil
+}
+
+// CheckLockedTPSL calculates and validates available for market TP/SL orders pair.
+// Only in quote mode
+func CheckLockedTPSLMarket(tp *Order, sl *Order) error {
+	if !sl.available.IsZero() {
+		return ErrSLNotZeroLocked
+	}
+
+	// Do not validate for Buy Market Base.
+	if tp.Side() == OrderSideBuy {
+		return nil
+	}
+
+	needLocked := tp.quantity
 
 	if tp.available.LessThan(needLocked) {
 		return ErrNotEnoughLockedAmount

@@ -491,3 +491,64 @@ func TestBasic(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+// This function is helper to define base bids and asks (not recommended to modify)
+func setupMarketState(t *testing.T, engine *matching.Engine, symbolID uint32) {
+	_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true, Mark: true, Index: true})
+	require.NoError(t, err)
+
+	pricesAndSides := []struct {
+		id    uint64
+		price uint64
+		side  matching.OrderSide
+	}{
+		{1, 10, matching.OrderSideBuy},
+		{2, 20, matching.OrderSideBuy},
+		{3, 30, matching.OrderSideSell},
+		{4, 40, matching.OrderSideSell},
+	}
+
+	for _, ps := range pricesAndSides {
+		err := engine.AddOrder(matching.NewLimitOrder(
+			symbolID,
+			ps.id,
+			ps.side,
+			matching.OrderTimeInForceGTC,
+			matching.NewUint(ps.price).Mul64(matching.UintPrecision),
+			matching.NewUint(1).Mul64(matching.UintPrecision),
+			matching.NewZeroUint(),
+			matching.NewMaxUint(),
+		))
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, 4, engine.Orders())
+}
+
+func setupMockHandler(t *testing.T, handler *mockmatching.MockHandler) {
+	handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
+	handler.EXPECT().OnAddOrder(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Do(
+		func(orderBook *matching.OrderBook, order *matching.Order) {
+			if order.ID() == 0 {
+				panic("order id is 0")
+			}
+		}).AnyTimes()
+	handler.EXPECT().OnUpdateOrder(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnAddPriceLevel(gomock.Any(), gomock.Any()).Do(
+		func(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {
+			t.Logf("add price level for %s\n", update.Price.ToFloatString())
+		}).AnyTimes()
+	handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnUpdateOrderBook(gomock.Any()).AnyTimes()
+	handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(orderBook *matching.OrderBook, orderID uint64, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+			t.Logf("order %d executed: price %s, qty %s, quoteQty %s\n",
+				orderID,
+				price.ToFloatString(), quantity.ToFloatString(),
+				quoteQuantity.ToFloatString(),
+			)
+		}).AnyTimes()
+	handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+}

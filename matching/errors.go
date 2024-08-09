@@ -37,6 +37,5 @@ var (
 	ErrBuyTPStopPriceGreaterThanEnginePrice  = errors.New("stop price must be less than engine price (buy take-profit order)")
 	ErrSellSLStopPriceGreaterThanEnginePrice = errors.New("stop price must be less than engine price (sell stop-loss order)")
 	ErrSellTPStopPriceLessThanEnginePrice    = errors.New("stop price must be greater than engine price (sell take-profit order)")
-	ErrTPSLDifferentStopPriceMode            = errors.New("both orders must have the same stop price mode (tpsl)")
 	ErrSLNotZeroLocked                       = errors.New("stop limit order locked must be zero: locked amount must be in take profit")
 )

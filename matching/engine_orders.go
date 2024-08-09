@@ -119,6 +119,16 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 		newOrder.stopPrice = ob.calculateTrailingStopPrice(newOrder)
 	}
 
+	// Set order to internal order storage
+	ob.orders.Set(newOrder.id, newOrder)
+
+	// Add the new limit order into the order book
+	priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
+	if err != nil {
+		return err
+	}
+	e.updatePriceLevel(ob, priceLevelUpdate)
+
 	// Call the corresponding handler
 	e.handler.OnAddOrder(ob, newOrder)
 
@@ -130,6 +140,12 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 	// Check the market price
 	arbitrage := newOrder.stopPrice.Equals(marketPrice)
 	if arbitrage {
+		// Delete the stop order from the order book
+		_, err := ob.deleteOrder(ob.treeForOrder(newOrder), newOrder)
+		if err != nil {
+			return fmt.Errorf("failed to delete order: %w", err)
+		}
+
 		// Convert the stop order into the market order
 		newOrder.orderType = OrderTypeMarket
 		newOrder.price = NewZeroUint()
@@ -147,10 +163,16 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 		if !newOrder.IsExecuted() {
 			// Call the corresponding handler
 			e.handler.OnDeleteOrder(ob, newOrder)
+
+			// Erase the order
+			ob.orders.Delete(newOrder.id)
+
+			// Release the order
+			e.allocator.PutOrder(newOrder)
 		}
 	}
 
-	err := e.match(ob)
+	err = e.match(ob)
 	if err != nil {
 		return fmt.Errorf("failed to match: %w", err)
 	}

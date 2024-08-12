@@ -106,8 +106,7 @@ func testAllOrders(t *testing.T, a []byte) {
 		}
 	}
 
-	engine.SetIndexPriceForOrderBook(data.symbol.ID(), data.endIndexPrice, true) //nolint:errcheck
-	engine.SetMarkPriceForOrderBook(data.symbol.ID(), data.endMarkPrice, true)   //nolint:errcheck
+	engine.SetIndexMarkPricesForOrderBook(data.symbol.ID(), data.endIndexPrice, data.endMarkPrice, true) //nolint:errcheck
 }
 
 // Data parsing:

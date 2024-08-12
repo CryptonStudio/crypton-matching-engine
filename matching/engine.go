@@ -201,6 +201,28 @@ func (e *Engine) GetMarketPriceForOrderBook(symbolID uint32) (Uint, error) {
 	return orderBook.GetMarketPrice(), nil
 }
 
+// SetIndexMarkPricesForOrderBook sets index and prices for order book at the same time,
+// it has ability to provoke matching iteration for disabled matching.
+func (e *Engine) SetIndexMarkPricesForOrderBook(symbolID uint32, indexPrice Uint, markPrice Uint, iterate bool) error {
+	ob := e.OrderBook(symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
+	}
+
+	task := func(ob *OrderBook) error {
+		ob.setIndexPrice(indexPrice)
+		ob.setMarkPrice(markPrice)
+
+		if e.matching || iterate {
+			e.match(ob)
+		}
+
+		return nil
+	}
+
+	return e.performOrderBookTask(ob, task)
+}
+
 // SetMarkPrice sets the mark price for order book,
 // it has ability to provoke matching iteration for disabled matching.
 func (e *Engine) SetMarkPriceForOrderBook(symbolID uint32, price Uint, iterate bool) error {

@@ -191,8 +191,8 @@ func (e *Engine) DeleteOrderBook(id uint32) (orderBook *OrderBook, err error) {
 }
 
 // GetMarketPriceForOrderBook return market price of given symbolID (last executed trade).
+// NOTE: not concurrency safe, use when there is no matching process.
 func (e *Engine) GetMarketPriceForOrderBook(symbolID uint32) (Uint, error) {
-
 	orderBook := e.OrderBook(symbolID)
 	if orderBook == nil {
 		return Uint{}, ErrOrderBookNotFound
@@ -201,36 +201,68 @@ func (e *Engine) GetMarketPriceForOrderBook(symbolID uint32) (Uint, error) {
 	return orderBook.GetMarketPrice(), nil
 }
 
-// SetMarkPrice sets the mark price for order book with ability to provoke matching iteration.
-func (e *Engine) SetMarkPriceForOrderBook(symbolID uint32, price Uint, iterate bool) error {
-	orderBook := e.OrderBook(symbolID)
-	if orderBook == nil {
-		return ErrInvalidOrderID
+// SetIndexMarkPricesForOrderBook sets index and prices for order book at the same time,
+// it has ability to provoke matching iteration for disabled matching.
+func (e *Engine) SetIndexMarkPricesForOrderBook(symbolID uint32, indexPrice Uint, markPrice Uint, iterate bool) error {
+	ob := e.OrderBook(symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
 	}
 
-	orderBook.setMarkPrice(price)
+	task := func(ob *OrderBook) error {
+		ob.setIndexPrice(indexPrice)
+		ob.setMarkPrice(markPrice)
 
-	if iterate {
-		e.match(orderBook)
+		if e.matching || iterate {
+			e.match(ob)
+		}
+
+		return nil
 	}
 
-	return nil
+	return e.performOrderBookTask(ob, task)
 }
 
-// SetIndexPriceForOrderBook sets the index price for order book with ability to provoke matching iteration.
+// SetMarkPrice sets the mark price for order book,
+// it has ability to provoke matching iteration for disabled matching.
+func (e *Engine) SetMarkPriceForOrderBook(symbolID uint32, price Uint, iterate bool) error {
+	ob := e.OrderBook(symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
+	}
+
+	task := func(ob *OrderBook) error {
+		ob.setMarkPrice(price)
+
+		if e.matching || iterate {
+			e.match(ob)
+		}
+
+		return nil
+	}
+
+	return e.performOrderBookTask(ob, task)
+}
+
+// SetIndexPriceForOrderBook sets the index price for order book,
+// it has ability to provoke matching iteration for disabled matching.
 func (e *Engine) SetIndexPriceForOrderBook(symbolID uint32, price Uint, iterate bool) error {
-	orderBook := e.OrderBook(symbolID)
-	if orderBook == nil {
-		return ErrInvalidOrderID
+	ob := e.OrderBook(symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
 	}
 
-	orderBook.setIndexPrice(price)
+	task := func(ob *OrderBook) error {
+		ob.setIndexPrice(price)
 
-	if iterate {
-		e.match(orderBook)
+		if e.matching || iterate {
+			e.match(ob)
+		}
+
+		return nil
 	}
 
-	return nil
+	return e.performOrderBookTask(ob, task)
 }
 
 ////////////////////////////////////////////////////////////////
@@ -380,8 +412,9 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 	return e.performOrderBookTask(ob, task)
 }
 
-// AddTPSL adds new orders pair take-profit and stop-limit (OCO orders) to the engine.
-// The first order should be take-profit order and the second order should be stop-limit.
+// AddTPSL adds new orders pair take-profit and stop-loss (OCO orders) to the engine.
+// The first order should be take-profit order and the second order should be stop-loss.
+// Based on stop-limit type.
 // NOTE: lock all amount in take-profit order.
 func (e *Engine) AddTPSL(tp Order, sl Order) error {
 	// Get the valid order book for the order
@@ -399,7 +432,6 @@ func (e *Engine) AddTPSL(tp Order, sl Order) error {
 	}
 
 	// Check locked
-	// Check locked
 	if err := CheckLockedTPSL(&tp, &sl); err != nil {
 		return err
 	}
@@ -409,11 +441,6 @@ func (e *Engine) AddTPSL(tp Order, sl Order) error {
 	sl.linkedOrderID = tp.id
 
 	task := func(ob *OrderBook) error {
-		// Check stop price mode
-		if tp.StopPriceMode() != sl.StopPriceMode() {
-			return ErrTPSLDifferentStopPriceMode
-		}
-
 		engineStopPrice := ob.GetStopPrice(tp.StopPriceMode())
 
 		// Check engine price
@@ -448,6 +475,98 @@ func (e *Engine) AddTPSL(tp Order, sl Order) error {
 		} else {
 			// Add sl order
 			err = e.addStopLimitOrder(ob, sl, false)
+			if err != nil {
+				return err
+			}
+
+			// Find sl order in orderbook
+			slFromOB := ob.Order(sl.id)
+
+			// Check if sl order has been executed or activated
+			if slFromOB == nil || slFromOB.Activated() {
+				// check if order has been already deleted
+				tpFromOB = ob.Order(tp.id)
+				if tpFromOB == nil {
+					return nil
+				}
+
+				// Cancel tp linked order
+				err := e.deleteOrder(ob, tpFromOB, false)
+				if err != nil {
+					return fmt.Errorf("failed to delete order (id: %d): %w", tpFromOB.ID(), err)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	return e.performOrderBookTask(ob, task)
+}
+
+// AddTPSLMarket adds new orders pair take-profit and stop-limit (OCO orders) to the engine.
+// The first order should be take-profit order and the second order should be stop-limit.
+// Based on stop type.
+// NOTE: lock all amount in take-profit order.
+func (e *Engine) AddTPSLMarket(tp Order, sl Order) error {
+	// Get the valid order book for the order
+	ob := e.OrderBook(tp.symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
+	}
+
+	// Validate orders parameters
+	if err := tp.Validate(ob); err != nil {
+		return err
+	}
+	if err := sl.Validate(ob); err != nil {
+		return err
+	}
+
+	// Check locked
+	if err := CheckLockedTPSL(&tp, &sl); err != nil {
+		return err
+	}
+
+	// Link OCO orders to each other
+	tp.linkedOrderID = sl.id
+	sl.linkedOrderID = tp.id
+
+	task := func(ob *OrderBook) error {
+		engineStopPrice := ob.GetStopPrice(tp.StopPriceMode())
+
+		// Check engine price
+		if tp.IsBuy() {
+			if sl.stopPrice.LessThan(engineStopPrice) {
+				return ErrBuySLStopPriceLessThanEnginePrice
+			}
+			if tp.stopPrice.GreaterThan(engineStopPrice) {
+				return ErrBuyTPStopPriceGreaterThanEnginePrice
+			}
+		} else {
+			if sl.stopPrice.GreaterThan(engineStopPrice) {
+				return ErrSellSLStopPriceGreaterThanEnginePrice
+			}
+			if tp.stopPrice.LessThan(engineStopPrice) {
+				return ErrSellTPStopPriceLessThanEnginePrice
+			}
+		}
+
+		err := e.addStopOrder(ob, tp, false)
+		if err != nil {
+			return err
+		}
+
+		tpFromOB := ob.Order(tp.id)
+
+		// Check if tp order has been executed or activated
+		if tpFromOB == nil || tpFromOB.Activated() {
+			// Imitation of order placing and cancellation of sl linked order
+			e.handler.OnAddOrder(ob, &sl)
+			e.handler.OnDeleteOrder(ob, &sl)
+		} else {
+			// Add sl order
+			err = e.addStopOrder(ob, sl, false)
 			if err != nil {
 				return err
 			}
@@ -660,7 +779,7 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 			return err
 		}
 		if order.IsLimit() {
-			e.updatePriceLevel(ob, priceLevelUpdate)
+			e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 		}
 
 		// Update the order or delete the empty order
@@ -750,7 +869,7 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 			return err
 		}
 		if order.IsLimit() {
-			e.updatePriceLevel(ob, priceLevelUpdate)
+			e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 		}
 
 		// Update the order or delete the empty order
@@ -842,7 +961,7 @@ func (e *Engine) loopOrderBook(ob *OrderBook) {
 // Internal helpers
 ////////////////////////////////////////////////////////////////
 
-func (e *Engine) updatePriceLevel(ob *OrderBook, update PriceLevelUpdate) {
+func (e *Engine) handleUpdatePriceLevel(ob *OrderBook, update PriceLevelUpdate) {
 	update.ID = ob.lastUpdateID
 	ob.lastUpdateID++ // no need to use atomic.AddUint64()
 	switch update.Kind {

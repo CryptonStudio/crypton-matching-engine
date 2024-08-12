@@ -37,12 +37,10 @@ type OrderBook struct {
 	marketPrice Uint
 
 	// Mark price
-	markPrice      Uint
-	markPriceMutex sync.RWMutex
+	markPrice Uint
 
 	// Index price
-	indexPrice      Uint
-	indexPriceMutex sync.RWMutex
+	indexPrice Uint
 
 	lastBidPrice     Uint
 	lastAskPrice     Uint
@@ -239,6 +237,7 @@ func (ob *OrderBook) GetTrailingSellStop(price Uint) *avl.Node[Uint, *PriceLevel
 // Stop price is one of follows depending on stopPriceMode
 ////////////////////////////////////////////////////////////////
 
+// GetStopPrice is internal helper for matching.
 func (ob *OrderBook) GetStopPrice(m StopPriceMode) Uint {
 	switch m {
 	case StopPriceModeMarket:
@@ -261,32 +260,20 @@ func (ob *OrderBook) updateMarketPrice(price Uint) {
 }
 
 func (ob *OrderBook) GetMarkPrice() Uint {
-	ob.markPriceMutex.RLock()
-	defer ob.markPriceMutex.RUnlock()
-
 	return ob.markPrice
 }
 
 // setMarkPrice sets the mark price without new match iteration of the engine.
 func (ob *OrderBook) setMarkPrice(price Uint) {
-	ob.markPriceMutex.Lock()
-	defer ob.markPriceMutex.Unlock()
-
 	ob.markPrice = price
 }
 
 func (ob *OrderBook) GetIndexPrice() Uint {
-	ob.indexPriceMutex.RLock()
-	defer ob.indexPriceMutex.RUnlock()
-
 	return ob.indexPrice
 }
 
 // setIndexPrice sets the index price without new match iteration of the engine.
 func (ob *OrderBook) setIndexPrice(price Uint) {
-	ob.indexPriceMutex.Lock()
-	defer ob.indexPriceMutex.Unlock()
-
 	ob.indexPrice = price
 }
 
@@ -333,10 +320,13 @@ func (ob *OrderBook) addOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Order)
 		update.Kind = PriceLevelUpdateKindAdd
 	}
 
-	// Update the price level volume
 	priceLevel := node.Value()
-	priceLevel.volume = priceLevel.volume.Add(order.restQuantity)
-	priceLevel.visible = priceLevel.visible.Add(order.VisibleQuantity())
+
+	if !order.IsVirtualOB() {
+		// Update the price level volume
+		priceLevel.volume = priceLevel.volume.Add(order.restQuantity)
+		priceLevel.visible = priceLevel.visible.Add(order.VisibleQuantity())
+	}
 
 	// Enqueue the new order to the order queue of the price level
 	order.orderQueued = priceLevel.queue.PushBack(order)
@@ -375,10 +365,13 @@ func (ob *OrderBook) reduceOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 		return
 	}
 
-	// Update the price level volume
 	priceLevel := node.Value()
-	priceLevel.volume = priceLevel.volume.Sub(quantity)
-	priceLevel.visible = priceLevel.visible.Sub(visible)
+
+	if !order.IsVirtualOB() {
+		// Update the price level volume
+		priceLevel.volume = priceLevel.volume.Sub(quantity)
+		priceLevel.visible = priceLevel.visible.Sub(visible)
+	}
 
 	if order.IsExecuted() {
 		// Dequeue the empty order from the order queue of the price level
@@ -402,7 +395,7 @@ func (ob *OrderBook) reduceOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 	}
 
 	// Delete the empty price level
-	if priceLevel.volume.IsZero() {
+	if priceLevel.orders == 0 {
 		err = ob.deletePriceLevel(tree, priceLevel.price)
 		if err != nil {
 			return
@@ -413,6 +406,9 @@ func (ob *OrderBook) reduceOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 	return
 }
 
+// deleteOrder deletes order from order book (real or virtual),
+// real means order book with real volume (limit orders),
+// virtual order books are used for activation of stop orders.
 func (ob *OrderBook) deleteOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Order) (update PriceLevelUpdate, err error) {
 	update.Kind = PriceLevelUpdateKindUpdate
 
@@ -429,10 +425,13 @@ func (ob *OrderBook) deleteOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 		return
 	}
 
-	// Update the price level volume
 	priceLevel := node.Value()
-	priceLevel.volume = priceLevel.volume.Sub(order.restQuantity)
-	priceLevel.visible = priceLevel.visible.Sub(order.VisibleQuantity())
+
+	if !order.IsVirtualOB() {
+		// Update the price level volume
+		priceLevel.volume = priceLevel.volume.Sub(order.restQuantity)
+		priceLevel.visible = priceLevel.visible.Sub(order.VisibleQuantity())
+	}
 
 	// Dequeue the deleted order from the order queue of the price level
 	priceLevel.queue.Remove(order.orderQueued)
@@ -454,7 +453,7 @@ func (ob *OrderBook) deleteOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 	}
 
 	// Delete the empty price level
-	if priceLevel.volume.IsZero() {
+	if priceLevel.orders == 0 {
 		err = ob.deletePriceLevel(tree, priceLevel.price)
 		if err != nil {
 			return

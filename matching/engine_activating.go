@@ -105,8 +105,14 @@ func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Nod
 }
 
 func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
+	// Check and delete linked orders (OCO)
+	err := e.deleteLinkedOrder(ob, order, true)
+	if err != nil {
+		return false, fmt.Errorf("failed to delete linked order: %w", err)
+	}
+
 	// Delete the stop order from the order book
-	_, err := ob.deleteOrder(ob.treeForOrder(order), order)
+	_, err = ob.deleteOrder(ob.treeForOrder(order), order)
 	if err != nil {
 		return false, fmt.Errorf("failed to delete order: %w", err)
 	}
@@ -139,7 +145,7 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 
 func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, error) {
 	// Check and delete linked orders (OCO)
-	err := e.deleteLinkedOrder(ob, order, false)
+	err := e.deleteLinkedOrder(ob, order, true)
 	if err != nil {
 		return false, fmt.Errorf("failed to delete linked order: %w", err)
 	}
@@ -183,7 +189,7 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, erro
 		if err != nil {
 			return false, err
 		}
-		e.updatePriceLevel(ob, priceLevelUpdate)
+		e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 	}
 
 	return true, nil

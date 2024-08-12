@@ -155,6 +155,16 @@ func (o *Order) IsSell() bool {
 	return o.side == OrderSideSell
 }
 
+// IsVirtualOB shows if the order uses virtual order book
+func (o *Order) IsVirtualOB() bool {
+	switch o.orderType {
+	case OrderTypeStop, OrderTypeStopLimit, OrderTypeTrailingStop, OrderTypeTrailingStopLimit:
+		return true
+	}
+
+	return false
+}
+
 ////////////////////////////////////////////////////////////////
 
 // TimeInForce returns the time in force option of the order.

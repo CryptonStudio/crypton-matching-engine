@@ -191,8 +191,8 @@ func (e *Engine) DeleteOrderBook(id uint32) (orderBook *OrderBook, err error) {
 }
 
 // GetMarketPriceForOrderBook return market price of given symbolID (last executed trade).
+// NOTE: not concurrency safe, use when there is no matching process.
 func (e *Engine) GetMarketPriceForOrderBook(symbolID uint32) (Uint, error) {
-
 	orderBook := e.OrderBook(symbolID)
 	if orderBook == nil {
 		return Uint{}, ErrOrderBookNotFound
@@ -201,36 +201,46 @@ func (e *Engine) GetMarketPriceForOrderBook(symbolID uint32) (Uint, error) {
 	return orderBook.GetMarketPrice(), nil
 }
 
-// SetMarkPrice sets the mark price for order book with ability to provoke matching iteration.
+// SetMarkPrice sets the mark price for order book,
+// it has ability to provoke matching iteration for disabled matching.
 func (e *Engine) SetMarkPriceForOrderBook(symbolID uint32, price Uint, iterate bool) error {
-	orderBook := e.OrderBook(symbolID)
-	if orderBook == nil {
-		return ErrInvalidOrderID
+	ob := e.OrderBook(symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
 	}
 
-	orderBook.setMarkPrice(price)
+	task := func(ob *OrderBook) error {
+		ob.setMarkPrice(price)
 
-	if iterate {
-		e.match(orderBook)
+		if e.matching || iterate {
+			e.match(ob)
+		}
+
+		return nil
 	}
 
-	return nil
+	return e.performOrderBookTask(ob, task)
 }
 
-// SetIndexPriceForOrderBook sets the index price for order book with ability to provoke matching iteration.
+// SetIndexPriceForOrderBook sets the index price for order book,
+// it has ability to provoke matching iteration for disabled matching.
 func (e *Engine) SetIndexPriceForOrderBook(symbolID uint32, price Uint, iterate bool) error {
-	orderBook := e.OrderBook(symbolID)
-	if orderBook == nil {
-		return ErrInvalidOrderID
+	ob := e.OrderBook(symbolID)
+	if ob == nil {
+		return ErrOrderBookNotFound
 	}
 
-	orderBook.setIndexPrice(price)
+	task := func(ob *OrderBook) error {
+		ob.setIndexPrice(price)
 
-	if iterate {
-		e.match(orderBook)
+		if e.matching || iterate {
+			e.match(ob)
+		}
+
+		return nil
 	}
 
-	return nil
+	return e.performOrderBookTask(ob, task)
 }
 
 ////////////////////////////////////////////////////////////////
@@ -747,7 +757,7 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 			return err
 		}
 		if order.IsLimit() {
-			e.updatePriceLevel(ob, priceLevelUpdate)
+			e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 		}
 
 		// Update the order or delete the empty order
@@ -837,7 +847,7 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 			return err
 		}
 		if order.IsLimit() {
-			e.updatePriceLevel(ob, priceLevelUpdate)
+			e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 		}
 
 		// Update the order or delete the empty order
@@ -929,7 +939,7 @@ func (e *Engine) loopOrderBook(ob *OrderBook) {
 // Internal helpers
 ////////////////////////////////////////////////////////////////
 
-func (e *Engine) updatePriceLevel(ob *OrderBook, update PriceLevelUpdate) {
+func (e *Engine) handleUpdatePriceLevel(ob *OrderBook, update PriceLevelUpdate) {
 	update.ID = ob.lastUpdateID
 	ob.lastUpdateID++ // no need to use atomic.AddUint64()
 	switch update.Kind {

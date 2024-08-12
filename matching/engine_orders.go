@@ -45,7 +45,7 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 		if err != nil {
 			return err
 		}
-		e.updatePriceLevel(ob, priceLevelUpdate)
+		e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 	}
 
 	// Automatic order matching
@@ -122,12 +122,11 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 	// Set order to internal order storage
 	ob.orders.Set(newOrder.id, newOrder)
 
-	// Add the new limit order into the order book
-	priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
+	// Add the new stop order into the order book
+	_, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
 	if err != nil {
 		return err
 	}
-	e.updatePriceLevel(ob, priceLevelUpdate)
 
 	// Call the corresponding handler
 	e.handler.OnAddOrder(ob, newOrder)
@@ -140,6 +139,9 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 	// Check the market price
 	arbitrage := newOrder.stopPrice.Equals(marketPrice)
 	if arbitrage {
+		// delete linked order
+		e.deleteLinkedOrder(ob, newOrder, true)
+
 		// Delete the stop order from the order book
 		_, err := ob.deleteOrder(ob.treeForOrder(newOrder), newOrder)
 		if err != nil {
@@ -224,12 +226,11 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 		// Set order to internal order storage
 		ob.orders.Set(newOrder.id, newOrder)
 
-		// Add the new limit order into the order book
-		priceLevelUpdate, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
+		// Add the new stop-limit order into the virtual order book
+		_, err := ob.addOrder(ob.treeForOrder(newOrder), newOrder)
 		if err != nil {
 			return err
 		}
-		e.updatePriceLevel(ob, priceLevelUpdate)
 	} else {
 		// delete linked order
 		e.deleteLinkedOrder(ob, newOrder, true)
@@ -265,7 +266,7 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 			if err != nil {
 				return err
 			}
-			e.updatePriceLevel(ob, priceLevelUpdate)
+			e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 		}
 	}
 
@@ -333,7 +334,7 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Ui
 			return err
 		}
 
-		e.updatePriceLevel(ob, priceLevelUpdate)
+		e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 	}
 
 	// Delete the empty order
@@ -396,7 +397,7 @@ func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursi
 			return err
 		}
 
-		e.updatePriceLevel(ob, priceLevelUpdate)
+		e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 	}
 
 	// Delete the empty order
@@ -430,7 +431,7 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 		return err
 	}
 	if order.IsLimit() {
-		e.updatePriceLevel(ob, priceLevelUpdate)
+		e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 	}
 
 	// Modify the order
@@ -471,7 +472,7 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 				return err
 			}
 			if order.IsLimit() {
-				e.updatePriceLevel(ob, priceLevelUpdate)
+				e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 			}
 		}
 
@@ -511,7 +512,7 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 		return err
 	}
 	if order.IsLimit() {
-		e.updatePriceLevel(ob, priceLevelUpdate)
+		e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 	}
 
 	// Call the corresponding handler
@@ -550,7 +551,7 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 			return err
 		}
 		if order.IsLimit() {
-			e.updatePriceLevel(ob, priceLevelUpdate)
+			e.handleUpdatePriceLevel(ob, priceLevelUpdate)
 		}
 
 	} else {
@@ -584,7 +585,9 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error 
 			return err
 		}
 
-		e.updatePriceLevel(ob, priceLevelUpdate)
+		if !order.IsVirtualOB() {
+			e.handleUpdatePriceLevel(ob, priceLevelUpdate)
+		}
 	}
 
 	// Call the corresponding handler

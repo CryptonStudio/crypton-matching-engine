@@ -99,3 +99,24 @@ func (ot OrderTimeInForce) String() string {
 		return "unknown"
 	}
 }
+
+// Order direction show if order will close or open position.
+// For spot trading sell is always closing position.
+// For futures order it can be defined by user.
+type OrderDirection uint8
+
+const (
+	OrderDirectionOpen OrderDirection = iota + 1
+	OrderDirectionClose
+)
+
+func (od OrderDirection) String() string {
+	switch od {
+	case OrderDirectionOpen:
+		return "open"
+	case OrderDirectionClose:
+		return "close"
+	default:
+		return "unknown"
+	}
+}

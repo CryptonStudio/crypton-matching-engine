@@ -67,15 +67,19 @@ func (h *ITCH) OnAddOrderMessage(msg itch.AddOrderMessage) error {
 	h.messages[msg.Type]++
 	h.handled++
 	var side matching.OrderSide
+	var direction matching.OrderDirection
 	if msg.BuySellIndicator == 'B' {
 		side = matching.OrderSideBuy
+		direction = matching.OrderDirectionOpen
 	} else {
 		side = matching.OrderSideSell
+		direction = matching.OrderDirectionClose
 	}
 	order := matching.NewLimitOrder(
 		uint32(msg.StockLocate),
 		msg.OrderReferenceNumber,
 		side,
+		direction,
 		matching.OrderTimeInForceGTC,
 		matching.NewUint(uint64(msg.Price)),
 		matching.NewUint(uint64(msg.Shares)),
@@ -95,15 +99,19 @@ func (h *ITCH) OnAddOrderMPIDMessage(msg itch.AddOrderMPIDMessage) error {
 	h.messages[msg.Type]++
 	h.handled++
 	var side matching.OrderSide
+	var direction matching.OrderDirection
 	if msg.BuySellIndicator == 'B' {
 		side = matching.OrderSideBuy
+		direction = matching.OrderDirectionOpen
 	} else {
 		side = matching.OrderSideSell
+		direction = matching.OrderDirectionClose
 	}
 	order := matching.NewLimitOrder(
 		uint32(msg.StockLocate),
 		msg.OrderReferenceNumber,
 		side,
+		direction,
 		matching.OrderTimeInForceGTC,
 		matching.NewUint(uint64(msg.Price)),
 		matching.NewUint(uint64(msg.Shares)),

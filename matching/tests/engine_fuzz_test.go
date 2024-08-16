@@ -354,30 +354,35 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
 		}
 
+		orderDirection := matching.OrderDirectionClose
+		if dt.Side == matching.OrderSideBuy {
+			orderDirection = matching.OrderDirectionOpen
+		}
+
 		switch dt.Type {
 		case matching.OrderTypeLimit:
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{matching.NewLimitOrder(
-					symbolID, id, dt.Side, dt.TIF, price, quantity, visible, restLocked,
+					symbolID, id, dt.Side, orderDirection, dt.TIF, price, quantity, visible, restLocked,
 				)}})
 		case matching.OrderTypeStopLimit:
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{matching.NewStopLimitOrder(
-					symbolID, id, dt.Side, dt.TIF, price, dt.PriceMode, stopPrice, quantity, visible, restLocked,
+					symbolID, id, dt.Side, orderDirection, dt.TIF, price, dt.PriceMode, stopPrice, quantity, visible, restLocked,
 				)}})
 		case matching.OrderTypeMarket:
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{matching.NewMarketOrder(
-					symbolID, id, dt.Side, matching.OrderTimeInForceIOC, modQQ(dt.ModQuote, 0, quantity),
+					symbolID, id, dt.Side, orderDirection, matching.OrderTimeInForceIOC, modQQ(dt.ModQuote, 0, quantity),
 					modQQ(dt.ModQuote, 1, quantity), slippage, restLocked,
 				)}})
 		case matching.OrderTypeStop:
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
-				[]matching.Order{matching.NewStopOrder(symbolID, id, dt.Side, matching.OrderTimeInForceIOC,
+				[]matching.Order{matching.NewStopOrder(symbolID, id, dt.Side, orderDirection, matching.OrderTimeInForceIOC,
 					dt.PriceMode, stopPrice, modQQ(dt.ModQuote, 0, quantity),
 					modQQ(dt.ModQuote, 1, quantity), slippage, restLocked,
 				)}})
@@ -393,11 +398,11 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{
-					matching.NewStopLimitOrder(symbolID, id1, dt.Side, dt.TIF, price,
+					matching.NewStopLimitOrder(symbolID, id1, dt.Side, orderDirection, dt.TIF, price,
 						dt.PriceMode, stopPrice,
 						quantity, visible, matching.NewZeroUint(),
 					),
-					matching.NewLimitOrder(symbolID, id2, dt.Side, dt.TIF, price,
+					matching.NewLimitOrder(symbolID, id2, dt.Side, orderDirection, dt.TIF, price,
 						quantity, visible, restLocked,
 					),
 				}})
@@ -415,11 +420,11 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{
-					matching.NewStopLimitOrder(symbolID, id1, dt.Side, dt.TIF, tpPrice,
+					matching.NewStopLimitOrder(symbolID, id1, dt.Side, orderDirection, dt.TIF, tpPrice,
 						dt.TpMode, u8U(dt.TpStopPrice),
 						quantity, visible, restLocked,
 					),
-					matching.NewStopLimitOrder(symbolID, id2, dt.Side, dt.TIF, slPrice,
+					matching.NewStopLimitOrder(symbolID, id2, dt.Side, orderDirection, dt.TIF, slPrice,
 						dt.SlMode, u8U(dt.SlStopPrice),
 						quantity, visible, matching.NewZeroUint(),
 					),
@@ -433,13 +438,13 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{
-					matching.NewStopOrder(symbolID, id1, dt.Side, matching.OrderTimeInForceIOC,
+					matching.NewStopOrder(symbolID, id1, dt.Side, orderDirection, matching.OrderTimeInForceIOC,
 						dt.TpMode, u8U(dt.TpStopPrice),
 						modQQ(dt.ModQuote, 0, u8U(dt.TpQuantity)),
 						modQQ(dt.ModQuote, 1, u8U(dt.TpQuantity)),
 						u8U(dt.TpSlippage), restLocked,
 					),
-					matching.NewStopOrder(symbolID, id2, dt.Side, matching.OrderTimeInForceIOC,
+					matching.NewStopOrder(symbolID, id2, dt.Side, orderDirection, matching.OrderTimeInForceIOC,
 						dt.SlMode, u8U(dt.SlStopPrice),
 						modQQ(dt.ModQuote, 0, u8U(dt.SlQuantity)),
 						modQQ(dt.ModQuote, 1, u8U(dt.SlQuantity)),

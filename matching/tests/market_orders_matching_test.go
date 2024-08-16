@@ -59,6 +59,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err = engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
@@ -85,6 +86,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err = engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
@@ -104,6 +106,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
@@ -127,6 +130,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
@@ -150,6 +154,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
@@ -176,6 +181,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceIOC,
 			matching.NewZeroUint(),
 			matching.NewUint(40).Mul64(matching.UintPrecision),
@@ -207,6 +213,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceIOC,
 			matching.NewZeroUint(),
 			matching.NewUint(40).Mul64(matching.UintPrecision),
@@ -235,6 +242,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
@@ -259,6 +267,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
@@ -282,6 +291,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(3).Mul64(matching.UintPrecision).Div64(2), // 1.5 amount
 			matching.NewZeroUint(),
@@ -309,6 +319,7 @@ func TestMarketOrdersMatching(t *testing.T) {
 
 		err := engine.AddOrder(matching.NewMarketOrder(symbolID, orderID,
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceIOC,
 			matching.NewZeroUint(),
 			matching.NewUint(25).Mul64(matching.UintPrecision),

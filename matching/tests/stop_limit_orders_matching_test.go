@@ -34,6 +34,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -52,6 +53,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(5).Mul64(matching.UintPrecision), // price 5
 				matching.StopPriceModeMarket,
@@ -77,6 +79,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -95,6 +98,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(50).Mul64(matching.UintPrecision), // price 50
 				matching.StopPriceModeMarket,
@@ -120,6 +124,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -137,6 +142,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(5).Mul64(matching.UintPrecision), // price 5
 				matching.StopPriceModeMarket,
@@ -154,6 +160,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(7),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(40).Mul64(matching.UintPrecision), // price 40
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -178,6 +185,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -195,6 +203,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(50).Mul64(matching.UintPrecision), // price 50
 				matching.StopPriceModeMarket,
@@ -212,6 +221,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(7),
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -236,6 +246,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -253,6 +264,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(5).Mul64(matching.UintPrecision), // price 5
 				matching.StopPriceModeMarket,
@@ -270,6 +282,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(7),
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -294,6 +307,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -311,6 +325,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(50).Mul64(matching.UintPrecision), // price 50
 				matching.StopPriceModeMarket,
@@ -328,6 +343,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 			symbolID,
 			uint64(7),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(40).Mul64(matching.UintPrecision), // price 40
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -361,6 +377,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(5).Mul64(matching.UintPrecision), // price 5
 				matching.StopPriceModeMark,
@@ -402,6 +419,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(5).Mul64(matching.UintPrecision), // price 5
 				matching.StopPriceModeMark,
@@ -443,6 +461,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(5).Mul64(matching.UintPrecision), // price 5
 				matching.StopPriceModeIndex,
@@ -484,6 +503,7 @@ func TestStopLimitOrdersMatching(t *testing.T) {
 				symbolID,
 				stopLimitOrderID,
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(5).Mul64(matching.UintPrecision), // price 5
 				matching.StopPriceModeIndex,

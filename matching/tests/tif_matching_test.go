@@ -39,6 +39,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(10).Mul64(matching.UintPrecision),
@@ -54,6 +55,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(6),
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			partQty,
@@ -83,6 +85,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(10).Mul64(matching.UintPrecision),
@@ -105,6 +108,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(5).Mul64(matching.UintPrecision),
@@ -119,6 +123,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(6),
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(10).Mul64(matching.UintPrecision),
@@ -142,6 +147,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(15).Mul64(matching.UintPrecision),
@@ -157,6 +163,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(6),
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceIOC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			partQty,
@@ -181,6 +188,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceFOK,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(10).Mul64(matching.UintPrecision),
@@ -203,6 +211,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(5).Mul64(matching.UintPrecision),
@@ -217,6 +226,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(6),
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceFOK,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(10).Mul64(matching.UintPrecision),
@@ -240,6 +250,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(15).Mul64(matching.UintPrecision),
@@ -255,6 +266,7 @@ func TestTimeInForce(t *testing.T) {
 			symbolID,
 			uint64(6),
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceFOK,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			partQty,

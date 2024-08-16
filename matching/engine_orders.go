@@ -287,7 +287,7 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 // executeOrder processes the fact of order execution
 func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Uint) error {
 	// Decrease the order available quantity
-	if order.IsBuy() {
+	if order.IsLockingQuote() {
 		order.SubAvailable(quoteQty)
 	} else {
 		order.SubAvailable(qty)

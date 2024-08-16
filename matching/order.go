@@ -17,6 +17,7 @@ type Order struct {
 	symbolID    uint32
 	orderType   OrderType
 	side        OrderSide
+	direction   OrderDirection
 	timeInForce OrderTimeInForce
 
 	_ uint8 // required for struct bytes alignment
@@ -142,6 +143,11 @@ func (o *Order) IsTakeProfit() bool {
 
 // Side returns the market side of the order.
 func (o *Order) Side() OrderSide {
+	return o.side
+}
+
+// Direction returns the market direction of the order.
+func (o *Order) Direction() OrderSide {
 	return o.side
 }
 
@@ -425,21 +431,29 @@ func (o *Order) Validate(ob *OrderBook) error {
 	return nil
 }
 
+func (o *Order) IsLockingBase() bool {
+	return o.direction == OrderDirectionClose
+}
+
+func (o *Order) IsLockingQuote() bool {
+	return o.direction == OrderDirectionOpen
+}
+
 // CheckLocked checks locked quantity,
 // all combinations of orders need exact minimum locked amount,
 // except Buy Market Base, Sell Market Quote.
 func (o *Order) CheckLocked(order *Order) error {
 	var needLocked Uint
-	// Sell Limit, Sell Stop-limit, Sell Market, Sell Stop
-	if o.side == OrderSideSell && !o.quantity.IsZero() {
+	// Close Limit, Close Stop-limit, Close Market, Close Stop
+	if o.IsLockingBase() && !o.quantity.IsZero() {
 		needLocked = o.restQuantity
 	}
-	// Buy Limit, Buy Stop-limit
-	if o.side == OrderSideBuy && !o.quantity.IsZero() && !o.price.IsZero() {
+	// Open Limit, Open Stop-limit
+	if o.IsLockingQuote() && !o.quantity.IsZero() && !o.price.IsZero() {
 		needLocked = o.restQuantity.Mul(o.price).Div64(UintPrecision)
 	}
-	// Buy Market Quote, Buy Stop Quote
-	if o.side == OrderSideBuy && !o.quoteQuantity.IsZero() {
+	// Open Market Quote, Open Stop Quote
+	if o.IsLockingQuote() && !o.quoteQuantity.IsZero() {
 		needLocked = o.restQuoteQuantity
 	}
 
@@ -457,7 +471,7 @@ func CheckLockedOCO(stopLimit *Order, limit *Order) error {
 	}
 
 	needLocked := limit.quantity
-	if limit.Side() == OrderSideBuy {
+	if limit.IsLockingQuote() {
 		price := Max(stopLimit.price, limit.price)
 		needLocked = limit.quantity.Mul(price).Div64(UintPrecision)
 	}
@@ -476,7 +490,7 @@ func CheckLockedTPSL(tp *Order, sl *Order) error {
 	}
 
 	needLocked := tp.quantity
-	if tp.Side() == OrderSideBuy {
+	if tp.IsLockingQuote() {
 		price := Max(tp.price, sl.price)
 		needLocked = tp.quantity.Mul(price).Div64(UintPrecision)
 	}

@@ -37,6 +37,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -71,6 +72,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -83,6 +85,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID+1,
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -117,6 +120,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -129,6 +133,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID+1,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -165,6 +170,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -177,6 +183,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID+1,
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(200).Mul64(matching.UintPrecision),
@@ -213,6 +220,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(200).Mul64(matching.UintPrecision),
@@ -225,6 +233,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID+1,
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -259,6 +268,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -294,6 +304,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -338,6 +349,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -385,6 +397,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -432,6 +445,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -476,6 +490,7 @@ func TestBasic(t *testing.T) {
 			symbolID,
 			orderID,
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(10).Mul64(matching.UintPrecision),
 			matching.NewUint(100).Mul64(matching.UintPrecision),
@@ -498,14 +513,15 @@ func setupMarketState(t *testing.T, engine *matching.Engine, symbolID uint32) {
 	require.NoError(t, err)
 
 	pricesAndSides := []struct {
-		id    uint64
-		price uint64
-		side  matching.OrderSide
+		id        uint64
+		price     uint64
+		side      matching.OrderSide
+		direction matching.OrderDirection
 	}{
-		{1, 10, matching.OrderSideBuy},
-		{2, 20, matching.OrderSideBuy},
-		{3, 30, matching.OrderSideSell},
-		{4, 40, matching.OrderSideSell},
+		{1, 10, matching.OrderSideBuy, matching.OrderDirectionOpen},
+		{2, 20, matching.OrderSideBuy, matching.OrderDirectionOpen},
+		{3, 30, matching.OrderSideSell, matching.OrderDirectionClose},
+		{4, 40, matching.OrderSideSell, matching.OrderDirectionClose},
 	}
 
 	for _, ps := range pricesAndSides {
@@ -513,6 +529,7 @@ func setupMarketState(t *testing.T, engine *matching.Engine, symbolID uint32) {
 			symbolID,
 			ps.id,
 			ps.side,
+			ps.direction,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(ps.price).Mul64(matching.UintPrecision),
 			matching.NewUint(1).Mul64(matching.UintPrecision),

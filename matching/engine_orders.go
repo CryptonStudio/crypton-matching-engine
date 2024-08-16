@@ -349,27 +349,6 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Ui
 	return nil
 }
 
-func (e *Engine) calcExecuteOrder(ob *OrderBook, order *Order, quantity Uint, quoteQuantity Uint) (qty Uint, quoteQty Uint) {
-	// Redefine for actually executed
-	qty, quoteQty = quantity, quoteQuantity
-
-	// Check market mode,
-	// check step (we delete here all remainders, so we don't need to check when match).
-	if order.marketQuoteMode {
-		if order.restQuoteQuantity.Sub(quoteQty).LessThan(ob.symbol.quoteLotSizeLimits.Step) {
-			quoteQty = order.restQuoteQuantity
-		}
-		return
-	}
-
-	// Check step (we delete here all remainders, so we don't need to check when match).
-	if order.restQuantity.Sub(qty).LessThan(ob.symbol.lotSizeLimits.Step) {
-		qty = order.restQuantity
-	}
-
-	return
-}
-
 ////////////////////////////////////////////////////////////////
 // Reducing orders
 ////////////////////////////////////////////////////////////////
@@ -632,11 +611,34 @@ func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, recursive bool) 
 	return nil
 }
 
-// calcExecutingForTaker calculate quantities for taker order (it can be market)
-func calcExecutingForTaker(taker *Order, makerPrice Uint) (Uint, Uint) {
+func (e *Engine) cutRemainders(ob *OrderBook, order *Order) {
+	if order.IsExecuted() {
+		return
+	}
+
+	restQuantity, restQuoteQuantity := order.RestQuantity(), order.RestQuoteQuantity()
+
+	switch {
+	case
+		// Check rest quantities.
+		!restQuantity.IsZero() && restQuantity.LessThan(ob.symbol.lotSizeLimits.Step),
+		!restQuoteQuantity.IsZero() && restQuoteQuantity.LessThan(ob.symbol.quoteLotSizeLimits.Step),
+		// Check locked quantities.
+		order.IsLockingBase() && order.Available().LessThan(ob.symbol.lotSizeLimits.Step),
+		order.IsLockingQuote() && order.Available().LessThan(ob.symbol.quoteLotSizeLimits.Step):
+
+		// Delete order.
+		e.deleteOrder(ob, order, true)
+	}
+
+	return
+}
+
+// calcRestAvailableQuantities calculate quantities for order with specified price.
+func calcRestAvailableQuantities(order *Order, makerPrice Uint) (Uint, Uint) {
 	// Calc rest quantities.
 
-	restQuantity, restQuoteQuantity := taker.RestQuantity(), taker.RestQuoteQuantity()
+	restQuantity, restQuoteQuantity := order.RestQuantity(), order.RestQuoteQuantity()
 	switch {
 	case restQuantity.IsZero() && restQuoteQuantity.IsZero():
 		return NewZeroUint(), NewZeroUint()
@@ -650,19 +652,14 @@ func calcExecutingForTaker(taker *Order, makerPrice Uint) (Uint, Uint) {
 
 	switch {
 	// Available in base
-	case taker.IsLockingBase():
-		if taker.Available().GreaterThanOrEqualTo(restQuantity) {
-			return restQuantity, restQuoteQuantity
-		}
-		return taker.Available(), taker.Available().Mul(makerPrice).Div64(UintPrecision)
+	case order.IsLockingBase() && order.Available().LessThan(restQuantity):
+		restQuantity = order.Available()
+		restQuoteQuantity = order.Available().Mul(makerPrice).Div64(UintPrecision)
 	// Available in quote
-	case taker.IsLockingQuote():
-		if taker.Available().GreaterThanOrEqualTo(restQuoteQuantity) {
-			return restQuantity, restQuoteQuantity
-		}
-		qty, _ := taker.Available().Mul64(UintPrecision).QuoRem(makerPrice)
-		return qty, taker.Available()
+	case order.IsLockingQuote() && order.Available().LessThan(restQuoteQuantity):
+		restQuantity, _ = order.Available().Mul64(UintPrecision).QuoRem(makerPrice)
+		restQuoteQuantity = order.Available()
 	}
 
-	return NewZeroUint(), NewZeroUint()
+	return restQuantity, restQuoteQuantity
 }

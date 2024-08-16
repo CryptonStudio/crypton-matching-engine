@@ -32,11 +32,6 @@ func (e *Engine) match(ob *OrderBook) error {
 				// Find the best order to execute and the best order to reduce
 				executing, reducing, swapped := orderBid.Value, orderAsk.Value, false
 
-				// Check quantity
-				if executing.restQuantity.GreaterThan(reducing.restQuantity) {
-					executing, reducing, swapped = reducing, executing, true // swap
-				}
-
 				// Need to define price based on maker order,
 				// define maker as order that has come earlier,
 				// calculate price and call handler based on this.
@@ -45,39 +40,47 @@ func (e *Engine) match(ob *OrderBook) error {
 					price = executing.price
 				}
 
-				// Get the execution quantities
-				quantity, quoteQuantity := executing.restQuantity, executing.restQuantity.Mul(price).Div64(UintPrecision)
+				// Define quantities for current execution.
+				reducingQty, reducingQuoteQty := calcRestAvailableQuantities(reducing, price)
+				executingQty, executingQuoteQty := calcRestAvailableQuantities(executing, price)
+				quantity, quoteQuantity := executingQty, executingQuoteQty
 
-				// Calc quantities and call handlers
-				reducingQty, reducingQuoteQty := e.calcExecuteOrder(ob, reducing, quantity, quoteQuantity)
-				executingQty, executingQuoteQty := e.calcExecuteOrder(ob, executing, quantity, quoteQuantity)
-				e.handler.OnExecuteOrder(ob, reducing.id, price, reducingQty, reducingQuoteQty)
-				e.handler.OnExecuteOrder(ob, executing.id, price, executingQty, executingQuoteQty)
+				if executingQty.GreaterThan(reducingQty) {
+					quantity, quoteQuantity = reducingQty, reducingQuoteQty
+					executing, reducing, swapped = reducing, executing, true // swap
+				}
+
+				e.handler.OnExecuteOrder(ob, reducing.id, price, quantity, quoteQuantity)
+				e.handler.OnExecuteOrder(ob, executing.id, price, quantity, quoteQuantity)
 
 				if executing.id < reducing.id {
 					e.handler.OnExecuteTrade(
-						ob, OrderUpdate{executing.id, executingQty, executingQuoteQty}, OrderUpdate{reducing.id, reducingQty, reducingQuoteQty},
-						price, Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
+						ob, OrderUpdate{executing.id, quantity, quoteQuantity}, OrderUpdate{reducing.id, quantity, quoteQuantity},
+						price, quantity, quoteQuantity,
 					)
 				} else {
 					e.handler.OnExecuteTrade(
-						ob, OrderUpdate{reducing.id, reducingQty, reducingQuoteQty}, OrderUpdate{executing.id, executingQty, executingQuoteQty},
-						price, Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
+						ob, OrderUpdate{reducing.id, quantity, quoteQuantity}, OrderUpdate{executing.id, quantity, quoteQuantity},
+						price, quantity, quoteQuantity,
 					)
 				}
 
 				// Execute orders
-				err := e.executeOrder(ob, reducing, reducingQty, reducingQuoteQty)
+				err := e.executeOrder(ob, reducing, quantity, quoteQuantity)
 				if err != nil {
 					return fmt.Errorf("failed to execute order (id: %d): %w", reducing.ID(), err)
 				}
-				err = e.executeOrder(ob, executing, executingQty, executingQuoteQty)
+				err = e.executeOrder(ob, executing, quantity, quoteQuantity)
 				if err != nil {
 					return fmt.Errorf("failed to execute order (id: %d): %w", executing.ID(), err)
 				}
 
 				// Update common market price
 				ob.updateMarketPrice(price)
+
+				// Cut remainders for reducing order
+				e.cutRemainders(ob, reducing)
+				e.cutRemainders(ob, executing)
 
 				// Next executing order
 				if !swapped {
@@ -222,9 +225,11 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			executingOrder := orderPtr.Value
 
 			// Get the execution price and quantity of crossed order, executing is maker
-			price, execQty := executingOrder.price, executingOrder.restQuantity
+			price := executingOrder.price
 
-			qty, quoteQty := calcExecutingForTaker(order, price)
+			execQty, execQuoteQty := calcRestAvailableQuantities(executingOrder, price)
+			qty, quoteQty := calcRestAvailableQuantities(order, price)
+
 			// Check if can't be matched at all (market with not enough available)
 			if qty.IsZero() {
 				return nil
@@ -234,31 +239,33 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			if execQty.LessThan(qty) {
 				qty = execQty
 				// need to calc like this because of crossed qty and price
-				quoteQty = ob.symbol.CalcQuoteQtyWithLimits(qty, price)
+				quoteQty = execQuoteQty
 			}
 
 			// Calc quantities and call handlers
-			reducingQty, reducingQuoteQty := e.calcExecuteOrder(ob, order, qty, quoteQty)
-			executingQty, executingQuoteQty := e.calcExecuteOrder(ob, executingOrder, qty, quoteQty)
-			e.handler.OnExecuteOrder(ob, order.id, price, reducingQty, reducingQuoteQty)
-			e.handler.OnExecuteOrder(ob, executingOrder.id, price, executingQty, executingQuoteQty)
+			e.handler.OnExecuteOrder(ob, order.id, price, qty, quoteQty)
+			e.handler.OnExecuteOrder(ob, executingOrder.id, price, qty, quoteQty)
 			e.handler.OnExecuteTrade(
-				ob, OrderUpdate{executingOrder.id, executingQty, executingQuoteQty}, OrderUpdate{order.id, reducingQty, reducingQuoteQty},
-				price, Max(reducingQty, executingQty), Max(reducingQuoteQty, executingQuoteQty),
+				ob, OrderUpdate{executingOrder.id, qty, quoteQty}, OrderUpdate{order.id, qty, quoteQty},
+				price, qty, quoteQty,
 			)
 
 			// Execute orders
-			err := e.executeOrder(ob, order, reducingQty, reducingQuoteQty)
+			err := e.executeOrder(ob, order, qty, quoteQty)
 			if err != nil {
 				return fmt.Errorf("failed to execute order (id: %d): %w", order.ID(), err)
 			}
-			err = e.executeOrder(ob, executingOrder, executingQty, executingQuoteQty)
+			err = e.executeOrder(ob, executingOrder, qty, quoteQty)
 			if err != nil {
 				return fmt.Errorf("failed to execute order (id: %d): %w", executingOrder.ID(), err)
 			}
 
 			// Update common market price
 			ob.updateMarketPrice(price)
+
+			// Cut remainders for orders
+			e.cutRemainders(ob, order)
+			e.cutRemainders(ob, executingOrder)
 
 			// Exit the loop if the order is executed
 			if order.IsExecuted() {

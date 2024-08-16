@@ -15,6 +15,7 @@ var (
 	ErrInvalidSymbol             = errors.New("invalid symbol")
 	ErrInvalidOrderID            = errors.New("invalid order id")
 	ErrInvalidOrderSide          = errors.New("invalid order side")
+	ErrInvalidOrderDirection     = errors.New("invalid order direction")
 	ErrInvalidOrderType          = errors.New("invalid order type")
 	ErrInvalidOrderPrice         = errors.New("invalid order price")
 	ErrInvalidOrderStopPrice     = errors.New("invalid order stop price")

@@ -147,8 +147,8 @@ func (o *Order) Side() OrderSide {
 }
 
 // Direction returns the market direction of the order.
-func (o *Order) Direction() OrderSide {
-	return o.side
+func (o *Order) Direction() OrderDirection {
+	return o.direction
 }
 
 // IsBuy returns true if buy order.

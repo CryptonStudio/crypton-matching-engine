@@ -19,9 +19,7 @@ import (
 func FuzzAllOrders(f *testing.F) {
 
 	f.Add([]byte{})
-	f.Add([]byte("01\x010100100\x01\x02\x01\x01000\x010000\x0300\x010000\xfd\x01\x01\x00000\x010000\x0310\x030002"))
-	f.Add([]byte("0x\x010100100\x01\x02\x01\x01000\x010000\x0300\x010000\xfd\x01\x01\x01000\x010000\x0310\x030000"))
-	f.Add([]byte("0\x010100000\x01\x02\x01\x01000\x010000\x0300\x010000\xfe\x01\x03\x00000\x0100 0\x0300\x010000\xfe\x01\x01\x00000\x010000\x0300\x030000"))
+	f.Add([]byte("0x\x010100000\x01\x01\x01\x01\x01x00\x010000\x0100\x010000\x03\x02\x01\x02\x00000\x030000\x0100\x010000"))
 
 	f.Fuzz(func(t *testing.T, a []byte) {
 		testAllOrders(t, a)
@@ -29,7 +27,7 @@ func FuzzAllOrders(f *testing.F) {
 }
 
 func TestFailedExample(t *testing.T) {
-	testAllOrders(t, []byte("0x\x010100100\x01\x02\x01\x01000\x010000\x0300\x010000\xfd\x01\x01\x01000\x010000\x0310\x030000"))
+	testAllOrders(t, []byte("0x\x010100000\x01\x01\x01\x01\x01x00\x010000\x0100\x010000\x03\x02\x01\x02\x00000\x030000\x0100\x010000"))
 }
 
 func testAllOrders(t *testing.T, a []byte) {
@@ -178,10 +176,11 @@ func (a allDataForFuzz) String() string {
 			lines = append(lines, "orders pair:")
 		}
 		for i := range oo.orders {
-			lines = append(lines, fmt.Sprintf("id=%d type=%s side=%s, tif=%s, price=%s, stop price=%s, quantity=%s quoteQuant=%s availableQty=%s restQty=%s",
+			lines = append(lines, fmt.Sprintf("id=%d type=%s side=%s, direction=%s, tif=%s, price=%s, stop price=%s, quantity=%s quoteQuant=%s availableQty=%s restQty=%s",
 				oo.orders[i].ID(),
 				oo.orders[i].Type().String(),
 				oo.orders[i].Side().String(),
+				oo.orders[i].Direction().String(),
 				oo.orders[i].TimeInForce().String(),
 				oo.orders[i].Price().ToFloatString(),
 				oo.orders[i].StopPrice().ToFloatString(),
@@ -222,6 +221,7 @@ const stateConfigSize = int(unsafe.Sizeof(stateConfig{}))
 type orderData struct {
 	Type      matching.OrderType
 	Side      matching.OrderSide
+	Direction matching.OrderDirection
 	TIF       matching.OrderTimeInForce
 	ModQuote  uint8
 	Price     uint8
@@ -314,6 +314,10 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			return allDataForFuzz{}, matching.ErrInvalidOrderSide
 		}
 
+		if !(dt.Direction == matching.OrderDirectionOpen || dt.Direction == matching.OrderDirectionClose) {
+			return allDataForFuzz{}, matching.ErrInvalidOrderDirection
+		}
+
 		if !(dt.PriceMode == matching.StopPriceModeMarket || dt.PriceMode == matching.StopPriceModeIndex || dt.PriceMode == matching.StopPriceModeMark) {
 			return allDataForFuzz{}, errors.New("invalid price mode")
 		}
@@ -350,13 +354,18 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 		}
 
 		restLocked := quantity
-		if dt.Side == matching.OrderSideBuy && (dt.Type == matching.OrderTypeLimit || dt.Type == matching.OrderTypeStopLimit) {
-			restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
-		}
-
-		orderDirection := matching.OrderDirectionClose
-		if dt.Side == matching.OrderSideBuy {
-			orderDirection = matching.OrderDirectionOpen
+		if dt.Direction == matching.OrderDirectionOpen {
+			if dt.Type == matching.OrderTypeLimit || dt.Type == matching.OrderTypeStopLimit {
+				restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
+			}
+			if dt.Type == orderTypeOCO {
+				restLocked = matching.Max(quantity.Mul(price).Div64(matching.UintPrecision), quantity.Mul(stopPrice).Div64(matching.UintPrecision))
+			}
+			if dt.Type == orderTypeTPSLLimit {
+				tpPrice := u8U(dt.TpPrice)
+				slPrice := u8U(dt.SlPrice)
+				restLocked = matching.Max(quantity.Mul(tpPrice).Div64(matching.UintPrecision), quantity.Mul(slPrice).Div64(matching.UintPrecision))
+			}
 		}
 
 		switch dt.Type {
@@ -364,55 +373,46 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{matching.NewLimitOrder(
-					symbolID, id, dt.Side, orderDirection, dt.TIF, price, quantity, visible, restLocked,
+					symbolID, id, dt.Side, dt.Direction, dt.TIF, price, quantity, visible, restLocked,
 				)}})
 		case matching.OrderTypeStopLimit:
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{matching.NewStopLimitOrder(
-					symbolID, id, dt.Side, orderDirection, dt.TIF, price, dt.PriceMode, stopPrice, quantity, visible, restLocked,
+					symbolID, id, dt.Side, dt.Direction, dt.TIF, price, dt.PriceMode, stopPrice, quantity, visible, restLocked,
 				)}})
 		case matching.OrderTypeMarket:
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{matching.NewMarketOrder(
-					symbolID, id, dt.Side, orderDirection, matching.OrderTimeInForceIOC, modQQ(dt.ModQuote, 0, quantity),
+					symbolID, id, dt.Side, dt.Direction, matching.OrderTimeInForceIOC, modQQ(dt.ModQuote, 0, quantity),
 					modQQ(dt.ModQuote, 1, quantity), slippage, restLocked,
 				)}})
 		case matching.OrderTypeStop:
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
-				[]matching.Order{matching.NewStopOrder(symbolID, id, dt.Side, orderDirection, matching.OrderTimeInForceIOC,
+				[]matching.Order{matching.NewStopOrder(symbolID, id, dt.Side, dt.Direction, matching.OrderTimeInForceIOC,
 					dt.PriceMode, stopPrice, modQQ(dt.ModQuote, 0, quantity),
 					modQQ(dt.ModQuote, 1, quantity), slippage, restLocked,
 				)}})
 		case orderTypeOCO:
-			restLocked := quantity
-			if dt.Side == matching.OrderSideBuy {
-				restLocked = matching.Max(quantity.Mul(price).Div64(matching.UintPrecision), quantity.Mul(stopPrice).Div64(matching.UintPrecision))
-			}
-
 			id1 := id
 			id++
 			id2 := id
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{
-					matching.NewStopLimitOrder(symbolID, id1, dt.Side, orderDirection, dt.TIF, price,
+					matching.NewStopLimitOrder(symbolID, id1, dt.Side, dt.Direction, dt.TIF, price,
 						dt.PriceMode, stopPrice,
 						quantity, visible, matching.NewZeroUint(),
 					),
-					matching.NewLimitOrder(symbolID, id2, dt.Side, orderDirection, dt.TIF, price,
+					matching.NewLimitOrder(symbolID, id2, dt.Side, dt.Direction, dt.TIF, price,
 						quantity, visible, restLocked,
 					),
 				}})
 		case orderTypeTPSLLimit:
 			tpPrice := u8U(dt.TpPrice)
 			slPrice := u8U(dt.SlPrice)
-			restLocked := quantity
-			if dt.Side == matching.OrderSideBuy {
-				restLocked = matching.Max(quantity.Mul(tpPrice).Div64(matching.UintPrecision), quantity.Mul(slPrice).Div64(matching.UintPrecision))
-			}
 
 			id1 := id
 			id++
@@ -420,17 +420,17 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{
-					matching.NewStopLimitOrder(symbolID, id1, dt.Side, orderDirection, dt.TIF, tpPrice,
+					matching.NewStopLimitOrder(symbolID, id1, dt.Side, dt.Direction, dt.TIF, tpPrice,
 						dt.TpMode, u8U(dt.TpStopPrice),
 						quantity, visible, restLocked,
 					),
-					matching.NewStopLimitOrder(symbolID, id2, dt.Side, orderDirection, dt.TIF, slPrice,
+					matching.NewStopLimitOrder(symbolID, id2, dt.Side, dt.Direction, dt.TIF, slPrice,
 						dt.SlMode, u8U(dt.SlStopPrice),
 						quantity, visible, matching.NewZeroUint(),
 					),
 				}})
 		case orderTypeTPSLMarket:
-			restLocked := matching.Max(u8U(dt.TpQuantity), u8U(dt.SlQuantity))
+			restLocked = matching.Max(u8U(dt.TpQuantity), u8U(dt.SlQuantity))
 
 			id1 := id
 			id++
@@ -438,13 +438,13 @@ func parseBytesToData(inp []byte) (allDataForFuzz, error) {
 			result.ordersSequence = append(result.ordersSequence, sequenceItem{
 				dt.Type,
 				[]matching.Order{
-					matching.NewStopOrder(symbolID, id1, dt.Side, orderDirection, matching.OrderTimeInForceIOC,
+					matching.NewStopOrder(symbolID, id1, dt.Side, dt.Direction, matching.OrderTimeInForceIOC,
 						dt.TpMode, u8U(dt.TpStopPrice),
 						modQQ(dt.ModQuote, 0, u8U(dt.TpQuantity)),
 						modQQ(dt.ModQuote, 1, u8U(dt.TpQuantity)),
 						u8U(dt.TpSlippage), restLocked,
 					),
-					matching.NewStopOrder(symbolID, id2, dt.Side, orderDirection, matching.OrderTimeInForceIOC,
+					matching.NewStopOrder(symbolID, id2, dt.Side, dt.Direction, matching.OrderTimeInForceIOC,
 						dt.SlMode, u8U(dt.SlStopPrice),
 						modQQ(dt.ModQuote, 0, u8U(dt.SlQuantity)),
 						modQQ(dt.ModQuote, 1, u8U(dt.SlQuantity)),

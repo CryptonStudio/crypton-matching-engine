@@ -35,9 +35,11 @@ func (e *Engine) match(ob *OrderBook) error {
 				// Need to define price based on maker order,
 				// define maker as order that has come earlier,
 				// calculate price and call handler based on this.
-				price := reducing.price
+				var price Uint
 				if executing.id < reducing.id {
-					price = executing.price
+					price = getPriceForTrade(executing, reducing)
+				} else {
+					price = getPriceForTrade(reducing, executing)
 				}
 
 				// Define quantities for current execution.
@@ -225,7 +227,7 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			executingOrder := orderPtr.Value
 
 			// Get the execution price and quantity of crossed order, executing is maker
-			price := executingOrder.price
+			price := getPriceForTrade(executingOrder, order)
 
 			execQty, execQuoteQty := calcRestAvailableQuantities(executingOrder, price)
 			qty, quoteQty := calcRestAvailableQuantities(order, price)
@@ -314,4 +316,25 @@ func (e *Engine) canExecuteChain(
 
 	// Matching is not available
 	return false
+}
+
+// getPrice ForTrade choses price for trade assuming that quote locking orders execution depends on price,
+// so to guarantee execution quantity of limit orders, less price must be chosen.
+func getPriceForTrade(maker *Order, taker *Order) Uint {
+	switch {
+	// Check market orders, they always executed by price of maker.
+	case taker.IsMarket():
+		return maker.price
+	// Both locked in quote, so take min.
+	case maker.IsLockingQuote() && taker.IsLockingQuote():
+		return Min(maker.price, taker.price)
+	// Taker only in quote.
+	case taker.IsLockingQuote():
+		return taker.price
+	// Maker only in quote.
+	case maker.IsLockingQuote():
+		return maker.price
+	}
+
+	return maker.price
 }

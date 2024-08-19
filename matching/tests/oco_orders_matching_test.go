@@ -37,6 +37,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -53,6 +54,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 				matching.StopPriceModeMarket,
@@ -65,6 +67,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(15).Mul64(matching.UintPrecision), // price 15
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
@@ -94,6 +97,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -110,6 +114,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 				matching.StopPriceModeMarket,
@@ -122,6 +127,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(15).Mul64(matching.UintPrecision), // price 15
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
@@ -149,6 +155,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -165,6 +172,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 				matching.StopPriceModeMarket,
@@ -177,6 +185,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(32).Mul64(matching.UintPrecision), // price 32
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
@@ -204,6 +213,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -220,6 +230,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 				matching.StopPriceModeMarket,
@@ -232,6 +243,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(32).Mul64(matching.UintPrecision), // price 32
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
@@ -259,6 +271,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -275,6 +288,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 				matching.StopPriceModeMarket,
@@ -287,6 +301,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(28).Mul64(matching.UintPrecision), // price 28
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
@@ -309,6 +324,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -325,6 +341,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 				matching.StopPriceModeMarket,
@@ -337,6 +354,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(15).Mul64(matching.UintPrecision), // price 15
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
@@ -366,6 +384,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -382,6 +401,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 				matching.StopPriceModeMarket,
@@ -394,6 +414,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(15).Mul64(matching.UintPrecision), // price 15
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
@@ -423,6 +444,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -439,6 +461,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // price 35
 				matching.StopPriceModeMarket,
@@ -451,6 +474,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(15).Mul64(matching.UintPrecision), // price 15
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
@@ -475,6 +499,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -491,6 +516,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(40).Mul64(matching.UintPrecision), // price 40
 				matching.StopPriceModeMarket,
@@ -503,6 +529,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(15).Mul64(matching.UintPrecision), // price 15
 				matching.NewUint(1).Mul64(matching.UintPrecision),  // amount 1
@@ -527,6 +554,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 			matching.NewUint(10).Mul64(matching.UintPrecision), // amount 10
@@ -543,6 +571,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 				matching.StopPriceModeMarket,
@@ -555,6 +584,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceGTC,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // price 20
 				matching.NewUint(15).Mul64(matching.UintPrecision), // amount 15
@@ -609,6 +639,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(1),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			firstTrade.price,
 			firstTrade.quantity,
@@ -621,6 +652,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(2),
 			matching.OrderSideSell,
+			matching.OrderDirectionClose,
 			matching.OrderTimeInForceGTC,
 			firstTrade.price,
 			firstTrade.quantity,
@@ -688,6 +720,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(3),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceGTC,
 				secondTrade.price,
 				matching.StopPriceModeMarket,
@@ -700,6 +733,7 @@ func TestOCOOrders(t *testing.T) {
 				symbolID,
 				uint64(4),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceGTC,
 				secondTrade.limitPrice,
 				secondTrade.quantity,
@@ -713,6 +747,7 @@ func TestOCOOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			secondTrade.limitPrice,
 			secondTrade.quantity,

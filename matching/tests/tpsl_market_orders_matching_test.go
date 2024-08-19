@@ -37,6 +37,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -53,6 +54,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
@@ -65,6 +67,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
@@ -99,6 +102,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -115,6 +119,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
@@ -127,6 +132,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
@@ -156,6 +162,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -172,6 +179,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(35).Mul64(matching.UintPrecision), // stop-price 35
@@ -184,6 +192,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
@@ -213,6 +222,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -229,6 +239,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
@@ -241,6 +252,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
@@ -270,6 +282,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -286,6 +299,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // stop-price 20
@@ -298,6 +312,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideSell,
+				matching.OrderDirectionClose,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // stop-price 20
@@ -322,6 +337,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -338,6 +354,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
@@ -350,6 +367,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
@@ -381,6 +399,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -397,6 +416,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(25).Mul64(matching.UintPrecision), // stop-price 25
@@ -409,6 +429,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
@@ -440,6 +461,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -456,6 +478,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(30).Mul64(matching.UintPrecision), // stop-price 30
@@ -468,6 +491,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(40).Mul64(matching.UintPrecision), // stop-price 40
@@ -494,6 +518,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 			symbolID,
 			uint64(5),
 			matching.OrderSideBuy,
+			matching.OrderDirectionOpen,
 			matching.OrderTimeInForceGTC,
 			matching.NewUint(30).Mul64(matching.UintPrecision), // price 30
 			matching.NewUint(1).Mul64(matching.UintPrecision),
@@ -510,6 +535,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(6),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(20).Mul64(matching.UintPrecision), // stop-price 20
@@ -522,6 +548,7 @@ func TestTPSLMarketOrders(t *testing.T) {
 				symbolID,
 				uint64(7),
 				matching.OrderSideBuy,
+				matching.OrderDirectionOpen,
 				matching.OrderTimeInForceIOC,
 				matching.StopPriceModeMarket,
 				matching.NewUint(30).Mul64(matching.UintPrecision), // stop-price 30

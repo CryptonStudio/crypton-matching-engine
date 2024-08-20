@@ -11,7 +11,6 @@ import (
 	"unsafe"
 
 	matching "github.com/cryptonstudio/crypton-matching-engine/matching"
-	mockmatching "github.com/cryptonstudio/crypton-matching-engine/matching/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
@@ -39,15 +38,14 @@ func testAllOrders(t *testing.T, a []byte) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	setupHandler := func(t *testing.T) matching.Handler {
-		handler := mockmatching.NewMockHandler(ctrl)
-		setupMockHandler(t, handler)
-		// to skip oco invalid pairs
-		handler.EXPECT().OnError(gomock.Any(), gomock.Any()).AnyTimes()
-		return handler
+	stor := newFuzzStorage(t)
+	for _, oo := range data.ordersSequence {
+		for _, o := range oo.orders {
+			stor.addOrder(o)
+		}
 	}
 
-	engine := matching.NewEngine(setupHandler(t), false)
+	engine := matching.NewEngine(stor, false)
 	engine.EnableMatching()
 
 	_, err = engine.AddOrderBook(data.symbol,
@@ -193,10 +191,6 @@ func (a allDataForFuzz) String() string {
 	}
 
 	return strings.Join(lines, "\n")
-}
-
-func u16U(v uint16) matching.Uint {
-	return matching.NewUint(uint64(v)).Mul64(matching.UintPrecision).Div64(1000)
 }
 
 func u8U(v uint8) matching.Uint {
@@ -467,3 +461,85 @@ func modQQ(mode, req uint8, q matching.Uint) matching.Uint {
 	}
 	return matching.NewZeroUint()
 }
+
+// fuzzStorage implements Handler and it's need for check unlocking after matching.
+type fuzzStorage struct {
+	orders map[uint64]orderStorageData
+	t      *testing.T
+}
+
+type orderStorageData struct {
+	id     uint64
+	locked matching.Uint
+}
+
+func newFuzzStorage(t *testing.T) *fuzzStorage {
+	return &fuzzStorage{
+		orders: make(map[uint64]orderStorageData),
+		t:      t,
+	}
+}
+
+func (fs *fuzzStorage) addOrder(order matching.Order) {
+	fs.orders[order.ID()] = orderStorageData{
+		id:     order.ID(),
+		locked: order.Available(),
+	}
+}
+
+func (fs *fuzzStorage) unlockAmount(ob *matching.OrderBook, upd matching.OrderUpdate) {
+	order := ob.Order(upd.ID)
+	if order == nil {
+		fs.t.Fatalf("can't found order %d", upd.ID)
+	}
+	data, ok := fs.orders[upd.ID]
+	if !ok {
+		fs.t.Fatalf("can't found locked for order %d", upd.ID)
+	}
+
+	toUnlock := matching.NewZeroUint()
+
+	switch order.Direction() {
+	case matching.OrderDirectionClose:
+		toUnlock = upd.Quantity
+	case matching.OrderDirectionOpen:
+		toUnlock = upd.QuoteQuantity
+	}
+
+	if toUnlock.IsZero() {
+		fs.t.Fatalf("try to unlock zero amount for order %d", upd.ID)
+	}
+
+	if toUnlock.GreaterThan(data.locked) {
+		fs.t.Fatalf("try to unlock more that locked for order %d: has %s, but try %s",
+			upd.ID, data.locked.ToFloatString(), toUnlock.ToFloatString())
+	}
+
+	data.locked = data.locked.Sub(toUnlock)
+	fs.orders[upd.ID] = data
+}
+
+func (fs *fuzzStorage) OnAddOrderBook(orderBook *matching.OrderBook)    {}
+func (fs *fuzzStorage) OnUpdateOrderBook(orderBook *matching.OrderBook) {}
+func (fs *fuzzStorage) OnDeleteOrderBook(orderBook *matching.OrderBook) {}
+
+func (fs *fuzzStorage) OnAddPriceLevel(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {
+}
+func (fs *fuzzStorage) OnUpdatePriceLevel(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {
+}
+func (fs *fuzzStorage) OnDeletePriceLevel(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {
+}
+
+func (fs *fuzzStorage) OnAddOrder(orderBook *matching.OrderBook, order *matching.Order)    {}
+func (fs *fuzzStorage) OnUpdateOrder(orderBook *matching.OrderBook, order *matching.Order) {}
+func (fs *fuzzStorage) OnDeleteOrder(orderBook *matching.OrderBook, order *matching.Order) {}
+
+func (fs *fuzzStorage) OnExecuteOrder(orderBook *matching.OrderBook, orderID uint64, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+}
+func (fs *fuzzStorage) OnExecuteTrade(orderBook *matching.OrderBook, makerOrderUpdate matching.OrderUpdate,
+	takerOrderUpdate matching.OrderUpdate, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
+	fs.unlockAmount(orderBook, makerOrderUpdate)
+	fs.unlockAmount(orderBook, takerOrderUpdate)
+}
+
+func (fs *fuzzStorage) OnError(orderBook *matching.OrderBook, err error) {}

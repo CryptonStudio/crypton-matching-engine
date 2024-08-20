@@ -26,7 +26,7 @@ func FuzzAllOrders(f *testing.F) {
 }
 
 func TestFailedExample(t *testing.T) {
-	testAllOrders(t, []byte("0x\x010100000\x01\x01\x01\x01\x01x00\x010000\x0100\x010000\x03\x02\x01\x02\x00000\x030000\x0100\x010000"))
+	testAllOrders(t, []byte("01\x010100000\x01\x01\x01\x01\x01000\x030000\x0100\x010000\xfe\x02\x01\x02\x00000\x030010\x0200\x030000"))
 }
 
 func testAllOrders(t *testing.T, a []byte) {
@@ -40,8 +40,13 @@ func testAllOrders(t *testing.T, a []byte) {
 
 	stor := newFuzzStorage(t)
 	for _, oo := range data.ordersSequence {
-		for _, o := range oo.orders {
-			stor.addOrder(o)
+		if len(oo.orders) == 1 {
+			stor.addOrder(oo.orders[0], 0)
+		}
+		if len(oo.orders) == 2 {
+			stor.addOrder(oo.orders[0], oo.orders[1].ID())
+			stor.addOrder(oo.orders[1], oo.orders[0].ID())
+
 		}
 	}
 
@@ -469,9 +474,10 @@ type fuzzStorage struct {
 }
 
 type orderStorageData struct {
-	id        uint64
-	locked    matching.Uint
-	direction matching.OrderDirection
+	id            uint64
+	locked        matching.Uint
+	direction     matching.OrderDirection
+	linkedOrderID uint64
 }
 
 func newFuzzStorage(t *testing.T) *fuzzStorage {
@@ -481,11 +487,12 @@ func newFuzzStorage(t *testing.T) *fuzzStorage {
 	}
 }
 
-func (fs *fuzzStorage) addOrder(order matching.Order) {
+func (fs *fuzzStorage) addOrder(order matching.Order, linkedOrderID uint64) {
 	fs.orders[order.ID()] = orderStorageData{
-		id:        order.ID(),
-		locked:    order.Available(),
-		direction: order.Direction(),
+		id:            order.ID(),
+		locked:        order.Available(),
+		direction:     order.Direction(),
+		linkedOrderID: linkedOrderID,
 	}
 }
 
@@ -506,6 +513,18 @@ func (fs *fuzzStorage) unlockAmount(_ *matching.OrderBook, upd matching.OrderUpd
 
 	if toUnlock.IsZero() {
 		fs.t.Fatalf("try to unlock zero amount for order %d", upd.ID)
+	}
+
+	// Linked orders.
+	if data.locked.IsZero() && data.linkedOrderID != 0 {
+		linkedData, ok := fs.orders[data.linkedOrderID]
+		if !ok {
+			fs.t.Fatalf("can't found locked for linked order %d", upd.ID)
+		}
+
+		data.locked = data.locked.Add(linkedData.locked)
+		linkedData.locked = matching.NewZeroUint()
+		fs.orders[upd.ID] = linkedData
 	}
 
 	if toUnlock.GreaterThan(data.locked) {

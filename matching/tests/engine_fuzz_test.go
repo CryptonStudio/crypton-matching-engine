@@ -469,8 +469,9 @@ type fuzzStorage struct {
 }
 
 type orderStorageData struct {
-	id     uint64
-	locked matching.Uint
+	id        uint64
+	locked    matching.Uint
+	direction matching.OrderDirection
 }
 
 func newFuzzStorage(t *testing.T) *fuzzStorage {
@@ -482,16 +483,13 @@ func newFuzzStorage(t *testing.T) *fuzzStorage {
 
 func (fs *fuzzStorage) addOrder(order matching.Order) {
 	fs.orders[order.ID()] = orderStorageData{
-		id:     order.ID(),
-		locked: order.Available(),
+		id:        order.ID(),
+		locked:    order.Available(),
+		direction: order.Direction(),
 	}
 }
 
-func (fs *fuzzStorage) unlockAmount(ob *matching.OrderBook, upd matching.OrderUpdate) {
-	order := ob.Order(upd.ID)
-	if order == nil {
-		fs.t.Fatalf("can't found order %d", upd.ID)
-	}
+func (fs *fuzzStorage) unlockAmount(_ *matching.OrderBook, upd matching.OrderUpdate) {
 	data, ok := fs.orders[upd.ID]
 	if !ok {
 		fs.t.Fatalf("can't found locked for order %d", upd.ID)
@@ -499,7 +497,7 @@ func (fs *fuzzStorage) unlockAmount(ob *matching.OrderBook, upd matching.OrderUp
 
 	toUnlock := matching.NewZeroUint()
 
-	switch order.Direction() {
+	switch data.direction {
 	case matching.OrderDirectionClose:
 		toUnlock = upd.Quantity
 	case matching.OrderDirectionOpen:

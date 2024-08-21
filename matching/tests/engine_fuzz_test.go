@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"testing"
 	"unsafe"
 
@@ -46,7 +47,6 @@ func testAllOrders(t *testing.T, a []byte) {
 		if len(oo.orders) == 2 {
 			stor.addOrder(oo.orders[0], oo.orders[1].ID())
 			stor.addOrder(oo.orders[1], oo.orders[0].ID())
-
 		}
 	}
 
@@ -115,9 +115,9 @@ func testAllOrders(t *testing.T, a []byte) {
 // 1 byte for enums
 
 const (
-	orderTypeOCO        matching.OrderType = 255
-	orderTypeTPSLLimit  matching.OrderType = 254
-	orderTypeTPSLMarket matching.OrderType = 253
+	orderTypeOCO        matching.OrderType = 7
+	orderTypeTPSLLimit  matching.OrderType = 8
+	orderTypeTPSLMarket matching.OrderType = 9
 )
 
 type allDataForFuzz struct {
@@ -200,6 +200,10 @@ func (a allDataForFuzz) String() string {
 
 func u8U(v uint8) matching.Uint {
 	return matching.NewUint(uint64(v)).Mul64(matching.UintPrecision).Div64(100)
+}
+
+func u16U(v uint16) matching.Uint {
+	return matching.NewUint(uint64(v)).Mul64(matching.UintPrecision).Div64(10000)
 }
 
 type stateConfig struct {
@@ -469,7 +473,8 @@ func modQQ(mode, req uint8, q matching.Uint) matching.Uint {
 
 // fuzzStorage implements Handler and it's need for check unlocking after matching.
 type fuzzStorage struct {
-	orders map[uint64]orderStorageData
+	sync.Mutex
+	orders map[uint64]*orderStorageData
 	t      *testing.T
 }
 
@@ -482,13 +487,13 @@ type orderStorageData struct {
 
 func newFuzzStorage(t *testing.T) *fuzzStorage {
 	return &fuzzStorage{
-		orders: make(map[uint64]orderStorageData),
+		orders: make(map[uint64]*orderStorageData),
 		t:      t,
 	}
 }
 
 func (fs *fuzzStorage) addOrder(order matching.Order, linkedOrderID uint64) {
-	fs.orders[order.ID()] = orderStorageData{
+	fs.orders[order.ID()] = &orderStorageData{
 		id:            order.ID(),
 		locked:        order.Available(),
 		direction:     order.Direction(),
@@ -497,6 +502,9 @@ func (fs *fuzzStorage) addOrder(order matching.Order, linkedOrderID uint64) {
 }
 
 func (fs *fuzzStorage) unlockAmount(_ *matching.OrderBook, upd matching.OrderUpdate) {
+	fs.Lock()
+	defer fs.Unlock()
+
 	data, ok := fs.orders[upd.ID]
 	if !ok {
 		fs.t.Fatalf("can't found locked for order %d", upd.ID)

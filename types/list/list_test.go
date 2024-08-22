@@ -1,6 +1,7 @@
 package list
 
 import (
+	"sync"
 	"testing"
 )
 
@@ -337,4 +338,21 @@ func TestMoveUnknownMark(t *testing.T) {
 	l1.MoveBefore(e1, e2)
 	checkList(t, &l1, []any{1})
 	checkList(t, &l2, []any{2})
+}
+
+func TestAllocator(t *testing.T) {
+	type someType struct {
+		value int
+	}
+
+	allocator := sync.Pool{New: func() any {
+		return new(Element[someType])
+	}}
+
+	list1 := NewListPooled[someType](&allocator)
+	list2 := NewListPooled[someType](&allocator)
+	list1.PushBack(someType{1})
+	list2.PushBack(someType{2})
+	list1.Clean()
+	list2.Clean()
 }

@@ -23,14 +23,21 @@ func (e *Engine) match(ob *OrderBook) error {
 				break
 			}
 
+			itBid := topBid.Value().Iterator()
+			itAsk := topAsk.Value().Iterator()
+			itBid.Next()
+			itAsk.Next()
 			// Find the first order to execute and the first order to reduce
-			orderBid := topBid.Value().queue.Front()
-			orderAsk := topAsk.Value().queue.Front()
-
+			// orderBid := topBid.Value().queue.Front()
+			// orderAsk := topAsk.Value().queue.Front()
 			// Execute crossed orders
-			for orderBid != nil && orderAsk != nil && orderBid.Value != nil && orderAsk.Value != nil {
+			// for orderBid != nil && orderAsk != nil && orderBid.Value != nil && orderAsk.Value != nil {
+			for itBid.Valid() && itAsk.Valid() {
+				if itBid.Current().Value == nil || itAsk.Current().Value == nil {
+					break
+				}
 				// Find the best order to execute and the best order to reduce
-				executing, reducing, swapped := orderBid.Value, orderAsk.Value, false
+				executing, reducing, swapped := itBid.Current().Value, itAsk.Current().Value, false
 
 				// Need to define price based on maker order,
 				// define maker as order that has come earlier,
@@ -68,11 +75,11 @@ func (e *Engine) match(ob *OrderBook) error {
 				}
 
 				// Execute orders
-				err := e.executeOrder(ob, reducing, quantity, quoteQuantity)
+				exed1, err := e.executeOrder(ob, reducing, quantity, quoteQuantity)
 				if err != nil {
 					return fmt.Errorf("failed to execute order (id: %d): %w", reducing.ID(), err)
 				}
-				err = e.executeOrder(ob, executing, quantity, quoteQuantity)
+				exed2, err := e.executeOrder(ob, executing, quantity, quoteQuantity)
 				if err != nil {
 					return fmt.Errorf("failed to execute order (id: %d): %w", executing.ID(), err)
 				}
@@ -81,22 +88,30 @@ func (e *Engine) match(ob *OrderBook) error {
 				ob.updateMarketPrice(price)
 
 				// Cut remainders for reducing order
-				e.cutRemainders(ob, reducing)
-				e.cutRemainders(ob, executing)
+				if exed1 {
+					e.cutRemainders(ob, reducing)
+				}
+				if exed2 {
+					e.cutRemainders(ob, executing)
+				}
 
 				// Next executing order
 				if !swapped {
-					orderBid = orderBid.Next()
+					itBid.Next()
+					// orderBid = orderBid.Next()
 				} else {
-					orderAsk = orderAsk.Next()
+					itAsk.Next()
+					// orderAsk = orderAsk.Next()
 				}
 
 				// If reducing is executed too
-				if reducing.IsExecuted() {
+				if exed1 {
 					if !swapped {
-						orderAsk = orderAsk.Next()
+						itAsk.Next()
+						// orderAsk = orderAsk.Next()
 					} else {
-						orderBid = orderBid.Next()
+						itBid.Next()
+						// orderBid = orderBid.Next()
 					}
 				}
 			}
@@ -221,10 +236,10 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			return nil
 		}
 
+		it := priceLevel.Value().Iterator()
 		// Execute crossed orders
-		for orderPtr := priceLevel.Value().queue.Front(); orderPtr != nil; {
-			orderPtrNext := orderPtr.Next()
-			executingOrder := orderPtr.Value
+		for it.Next() {
+			executingOrder := it.Current().Value
 
 			// Get the execution price and quantity of crossed order, executing is maker
 			price := getPriceForTrade(executingOrder, order)
@@ -253,11 +268,11 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			)
 
 			// Execute orders
-			err := e.executeOrder(ob, order, qty, quoteQty)
+			exed1, err := e.executeOrder(ob, order, qty, quoteQty)
 			if err != nil {
 				return fmt.Errorf("failed to execute order (id: %d): %w", order.ID(), err)
 			}
-			err = e.executeOrder(ob, executingOrder, qty, quoteQty)
+			exed2, err := e.executeOrder(ob, executingOrder, qty, quoteQty)
 			if err != nil {
 				return fmt.Errorf("failed to execute order (id: %d): %w", executingOrder.ID(), err)
 			}
@@ -266,16 +281,17 @@ func (e *Engine) matchOrder(ob *OrderBook, order *Order) error {
 			ob.updateMarketPrice(price)
 
 			// Cut remainders for orders
-			e.cutRemainders(ob, order)
-			e.cutRemainders(ob, executingOrder)
-
-			// Exit the loop if the order is executed
-			if order.IsExecuted() {
-				return nil
+			if exed1 {
+				e.cutRemainders(ob, order)
+			}
+			if exed2 {
+				e.cutRemainders(ob, executingOrder)
 			}
 
-			// Move to the next order to execute at the same price level
-			orderPtr = orderPtrNext
+			// Exit the loop if the order is executed
+			if exed1 {
+				return nil
+			}
 		}
 	}
 }
@@ -294,21 +310,20 @@ func (e *Engine) canExecuteChain(
 
 	// Travel through price levels
 	for executing != nil {
-		// Take first order of price level
-		executingOrder := executing.Value().queue.Front()
-
 		// Travel through orders at current price levels
-		for executingOrder != nil && executingOrder.Value != nil {
-			quantity := executingOrder.Value.restQuantity
+		it := executing.Value().Iterator()
+		for it.Next() {
+			order := it.Current().Value
+			if order == nil {
+				break
+			}
+			quantity := order.restQuantity
 
 			if required.LessThanOrEqualTo(quantity) {
 				return true
 			}
 
 			required = required.Sub(quantity)
-
-			// Take the next order
-			executingOrder = executingOrder.Next()
 		}
 
 		executing = executing.NextRight()

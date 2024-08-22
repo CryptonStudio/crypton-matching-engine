@@ -284,8 +284,9 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 // Executing orders
 ////////////////////////////////////////////////////////////////
 
-// executeOrder processes the fact of order execution
-func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Uint) error {
+// executeOrder processes the fact of order execution.
+// bool flag is true when order is executed/deleted.
+func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Uint) (bool, error) {
 	// Decrease the order available quantity
 	if order.IsLockingQuote() {
 		order.SubAvailable(quoteQty)
@@ -300,38 +301,44 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Ui
 	// Check and delete linked orders
 	err := e.deleteLinkedOrder(ob, order, true)
 	if err != nil {
-		return fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
+		return false, fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
 	}
 
 	// Check market mode
 	if order.marketQuoteMode {
+		executed := false
 		order.SubRestQuoteQuantity(quoteQty)
 		if !order.IsExecuted() {
 			e.handler.OnUpdateOrder(ob, order)
 		} else {
+			executed = true
 			e.handler.OnDeleteOrder(ob, order)
 			e.deleteOrder(ob, order, true)
 		}
 
-		return nil
+		return executed, nil
 	}
 
 	// Reduce the order rest quantities
 	visible := order.VisibleQuantity()
 	order.SubRestQuantity(qty)
 	visible = visible.Sub(order.VisibleQuantity())
+	executed := false
 
 	if !order.IsExecuted() {
 		e.handler.OnUpdateOrder(ob, order)
 	} else {
+		executed = true
 		e.handler.OnDeleteOrder(ob, order)
 	}
+
+	// TODO: this part is copy from deleteOrder but without matching. Need unify.
 
 	if order.priceLevel != nil {
 		// Reduce the order in the order book
 		priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, qty, visible)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		e.handleUpdatePriceLevel(ob, priceLevelUpdate)
@@ -346,7 +353,7 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Ui
 		e.allocator.PutOrder(order)
 	}
 
-	return nil
+	return executed, nil
 }
 
 ////////////////////////////////////////////////////////////////

@@ -142,8 +142,8 @@ func (e *Engine) AddOrderBook(symbol Symbol, marketPrice Uint, spModesConfig Sto
 	// Prepare allocator
 	// TODO: Maybe it is not better to use single allocator for all order books
 	// TODO: Test how GC behaves in both cases (single allocator or own allocator for each order book)
-	// allocator := NewAllocator()
-	allocator := e.allocator
+	allocator := NewAllocator()
+	// allocator := e.allocator
 
 	// Create order book
 	orderBook = NewOrderBook(allocator, symbol, spModesConfig, defaultOrderBookTaskQueueSize)

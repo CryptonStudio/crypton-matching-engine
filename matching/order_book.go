@@ -330,7 +330,6 @@ func (ob *OrderBook) addOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Order)
 
 	// Enqueue the new order to the order queue of the price level
 	order.orderQueued = priceLevel.queue.PushBack(order)
-	priceLevel.orders++
 
 	// Cache the price level in the given order
 	order.priceLevel = node
@@ -376,7 +375,6 @@ func (ob *OrderBook) reduceOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 	if order.IsExecuted() {
 		// Dequeue the empty order from the order queue of the price level
 		priceLevel.queue.Remove(order.orderQueued)
-		priceLevel.orders--
 		order.orderQueued = nil
 
 		// Clear the price level cache in the given order
@@ -395,7 +393,7 @@ func (ob *OrderBook) reduceOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 	}
 
 	// Delete the empty price level
-	if priceLevel.orders == 0 {
+	if priceLevel.Orders() == 0 {
 		err = ob.deletePriceLevel(tree, priceLevel.price)
 		if err != nil {
 			return
@@ -435,7 +433,6 @@ func (ob *OrderBook) deleteOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 
 	// Dequeue the deleted order from the order queue of the price level
 	priceLevel.queue.Remove(order.orderQueued)
-	priceLevel.orders--
 	order.orderQueued = nil
 
 	// Clear the price level cache in the given order
@@ -453,7 +450,7 @@ func (ob *OrderBook) deleteOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 	}
 
 	// Delete the empty price level
-	if priceLevel.orders == 0 {
+	if priceLevel.Orders() == 0 {
 		err = ob.deletePriceLevel(tree, priceLevel.price)
 		if err != nil {
 			return

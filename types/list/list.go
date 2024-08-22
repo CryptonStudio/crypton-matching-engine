@@ -178,6 +178,10 @@ func (l *List[T]) Clean() {
 	l.len = 0
 }
 
+func (l *List[T]) Iterator() Iterator[T] {
+	return NewIterator(l)
+}
+
 // lazyInit lazily initializes a zero List value.
 func (l *List[T]) lazyInit() {
 	if l.root.next == nil {

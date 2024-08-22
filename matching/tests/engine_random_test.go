@@ -11,8 +11,7 @@ import (
 )
 
 func TestMemoryDmg(t *testing.T) {
-	// t.SkipNow()
-	const N = 10_000
+	const N = 100_000
 	symIDS := []uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	symbols := generateSymbols(symIDS)
 
@@ -78,19 +77,24 @@ func TestMemoryDmg(t *testing.T) {
 
 	for _, id := range symIDS {
 		ob := engine.OrderBook(id)
-		for orderPtr := ob.TopAsk().Value().Queue().Front(); orderPtr != nil; {
-			orderPtrNext := orderPtr.Next()
-			order := orderPtr.Value
-			require.True(t, !order.Available().IsZero(), "symbol %d, order %d avail=0", id, order.ID())
-			require.Equal(t, matching.OrderSideSell, order.Side(), "symbol %d, order %d side", id, order.ID())
-			orderPtr = orderPtrNext
+		if ob.TopAsk() != nil {
+			for orderPtr := ob.TopAsk().Value().Queue().Front(); orderPtr != nil; {
+				orderPtrNext := orderPtr.Next()
+				order := orderPtr.Value
+				require.True(t, !order.Available().IsZero(), "symbol %d, order %d avail=0", id, order.ID())
+				require.Equal(t, matching.OrderSideSell, order.Side(), "symbol %d, order %d side", id, order.ID())
+				orderPtr = orderPtrNext
+			}
 		}
-		for orderPtr := ob.TopBid().Value().Queue().Front(); orderPtr != nil; {
-			orderPtrNext := orderPtr.Next()
-			order := orderPtr.Value
-			require.True(t, !order.Available().IsZero(), "symbol %d, order %d avail=0", id, order.ID())
-			require.Equal(t, matching.OrderSideSell, order.Side(), "symbol %d, order %d side", id, order.ID())
-			orderPtr = orderPtrNext
+
+		if ob.TopBid() != nil {
+			for orderPtr := ob.TopBid().Value().Queue().Front(); orderPtr != nil; {
+				orderPtrNext := orderPtr.Next()
+				order := orderPtr.Value
+				require.True(t, !order.Available().IsZero(), "symbol %d, order %d avail=0", id, order.ID())
+				require.Equal(t, matching.OrderSideBuy, order.Side(), "symbol %d, order %d side", id, order.ID())
+				orderPtr = orderPtrNext
+			}
 		}
 	}
 

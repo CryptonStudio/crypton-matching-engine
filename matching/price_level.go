@@ -23,9 +23,9 @@ type PriceLevelL3 struct {
 }
 
 // NewPriceLevelL3 creates and returns new PriceLevelL3 instance.
-func NewPriceLevelL3(allocator *Allocator) *PriceLevelL3 {
+func NewPriceLevelL3() *PriceLevelL3 {
 	return &PriceLevelL3{
-		queue: list.NewListPooled[*Order](&allocator.orderQueueElements),
+		queue: list.NewList[*Order](),
 	}
 }
 

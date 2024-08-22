@@ -15,7 +15,7 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 	}
 
 	// Create a new order
-	newOrder := e.allocator.GetOrder()
+	newOrder := ob.allocator.GetOrder()
 	*newOrder = order
 
 	// Call the corresponding handler
@@ -101,7 +101,7 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 	}
 
 	// Create a new order
-	newOrder := e.allocator.GetOrder()
+	newOrder := ob.allocator.GetOrder()
 	*newOrder = order
 
 	// Find the market price for further stop calculation
@@ -170,7 +170,7 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 			ob.orders.Delete(newOrder.id)
 
 			// Release the order
-			e.allocator.PutOrder(newOrder)
+			ob.allocator.PutOrder(newOrder)
 		}
 	}
 
@@ -189,7 +189,7 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 	}
 
 	// Create a new order
-	newOrder := e.allocator.GetOrder()
+	newOrder := ob.allocator.GetOrder()
 	*newOrder = order
 
 	// Find the market price for further stop calculation
@@ -350,7 +350,7 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Ui
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	return executed, nil
@@ -392,7 +392,7 @@ func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursi
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	// Automatic order matching
@@ -473,7 +473,7 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	// Automatic order matching
@@ -545,7 +545,7 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 		e.handler.OnDeleteOrder(ob, order)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	// Automatic order matching
@@ -583,7 +583,7 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error 
 	ob.orders.Delete(order.id)
 
 	// Release the order
-	e.allocator.PutOrder(order)
+	ob.allocator.PutOrder(order)
 
 	// Automatic order matching
 	if e.matching && !recursive {

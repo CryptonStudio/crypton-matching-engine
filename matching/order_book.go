@@ -65,30 +65,21 @@ type OrderBook struct {
 }
 
 // NewOrderBook creates and returns new OrderBook instance.
-func NewOrderBook(allocator *Allocator, symbol Symbol, spModesConfig StopPriceModeConfig, taskQueueSize int) *OrderBook {
-	newPriceLevelTree := func(allocator *Allocator) avl.Tree[Uint, *PriceLevelL3] {
-		return avl.NewTreePooled[Uint, *PriceLevelL3](
-			func(a, b Uint) int { return a.Cmp(b) },
-			&allocator.priceLevelNodes,
-		)
-	}
-	newPriceLevelReversedTree := func(allocator *Allocator) avl.Tree[Uint, *PriceLevelL3] {
-		return avl.NewTreePooled[Uint, *PriceLevelL3](
-			func(a, b Uint) int { return -a.Cmp(b) },
-			&allocator.priceLevelNodes,
-		)
-	}
+func NewOrderBook(symbol Symbol, spModesConfig StopPriceModeConfig, taskQueueSize int) *OrderBook {
+	// Prepare allocator
+	// TODO: Test how GC behaves in both cases (with/without pool)
+	allocator := NewAllocator(true)
 
 	return &OrderBook{
 		allocator:        allocator,
 		symbol:           symbol,
-		bids:             newPriceLevelReversedTree(allocator),
-		asks:             newPriceLevelTree(allocator),
+		bids:             allocator.NewPriceLevelReversedTree(),
+		asks:             allocator.NewPriceLevelTree(),
 		spModes:          spModesConfig.Modes(),
-		buyStop:          newPriceLevelReversedTree(allocator),
-		sellStop:         newPriceLevelTree(allocator),
-		trailingBuyStop:  newPriceLevelReversedTree(allocator),
-		trailingSellStop: newPriceLevelTree(allocator),
+		buyStop:          allocator.NewPriceLevelReversedTree(),
+		sellStop:         allocator.NewPriceLevelTree(),
+		trailingBuyStop:  allocator.NewPriceLevelReversedTree(),
+		trailingSellStop: allocator.NewPriceLevelTree(),
 		marketPrice:      NewZeroUint(),
 		lastBidPrice:     NewZeroUint(),
 		lastAskPrice:     NewMaxUint(),

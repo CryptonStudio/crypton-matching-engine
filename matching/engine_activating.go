@@ -141,7 +141,7 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	return true, nil
@@ -183,7 +183,7 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, erro
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	// Add remaining order in order book for GTC

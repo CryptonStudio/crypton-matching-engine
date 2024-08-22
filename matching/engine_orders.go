@@ -618,12 +618,10 @@ func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, recursive bool) 
 	return nil
 }
 
-func (e *Engine) cutRemainders(ob *OrderBook, order *Order) {
-	if order.IsExecuted() {
-		return
-	}
-
-	restQuantity, restQuoteQuantity := order.RestQuantity(), order.RestQuoteQuantity()
+// cutRemainders cuts parts of orders which are less than configured steps,
+// bool flag is true when order is executed/deleted.
+func (e *Engine) cutRemainders(ob *OrderBook, order *Order) bool {
+	restQuantity, restQuoteQuantity, executed := order.RestQuantity(), order.RestQuoteQuantity(), false
 
 	switch {
 	case
@@ -636,9 +634,10 @@ func (e *Engine) cutRemainders(ob *OrderBook, order *Order) {
 
 		// Delete order.
 		e.deleteOrder(ob, order, true)
+		executed = true
 	}
 
-	return
+	return executed
 }
 
 // calcRestAvailableQuantities calculate quantities for order with specified price.

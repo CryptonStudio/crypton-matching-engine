@@ -19,14 +19,13 @@ type PriceLevelL3 struct {
 	price   Uint
 	volume  Uint // total volume of entire order queue
 	visible Uint // visible volume of entire order queue
-	orders  int  // amount of orders in entire order queue
 	queue   *list.List[*Order]
 }
 
 // NewPriceLevelL3 creates and returns new PriceLevelL3 instance.
-func NewPriceLevelL3(allocator *Allocator) *PriceLevelL3 {
+func NewPriceLevelL3() *PriceLevelL3 {
 	return &PriceLevelL3{
-		queue: list.NewListPooled[*Order](&allocator.orderQueueElements),
+		queue: list.NewList[*Order](),
 	}
 }
 
@@ -51,7 +50,7 @@ func (pl *PriceLevelL3) Visible() Uint {
 
 // Orders returns amount of orders in the queue.
 func (pl *PriceLevelL3) Orders() int {
-	return pl.orders
+	return pl.queue.Len()
 }
 
 // Queue returns the order queue.
@@ -59,11 +58,14 @@ func (pl *PriceLevelL3) Queue() *list.List[*Order] {
 	return pl.queue
 }
 
+func (pl *PriceLevelL3) Iterator() list.Iterator[*Order] {
+	return pl.queue.Iterator()
+}
+
 // Clean cleans the price level by removing all queued orders.
 func (pl *PriceLevelL3) Clean() {
 	pl.price = NewZeroUint()
 	pl.volume = NewZeroUint()
 	pl.visible = NewZeroUint()
-	pl.orders = 0
 	pl.queue.Clean()
 }

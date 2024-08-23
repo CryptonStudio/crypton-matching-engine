@@ -9,9 +9,6 @@ import "fmt"
 type Engine struct {
 	handler Handler
 
-	// Allocator used by all order books
-	allocator *Allocator
-
 	// Order books
 	orderBooks      []*OrderBook
 	orderBooksCount int
@@ -27,7 +24,6 @@ type Engine struct {
 func NewEngine(handler Handler, multithread bool) *Engine {
 	return &Engine{
 		handler:     handler,
-		allocator:   NewAllocator(),
 		orderBooks:  make([]*OrderBook, defaultReservedOrderBookSlots),
 		multithread: multithread,
 	}
@@ -139,14 +135,8 @@ func (e *Engine) AddOrderBook(symbol Symbol, marketPrice Uint, spModesConfig Sto
 		return
 	}
 
-	// Prepare allocator
-	// TODO: Maybe it is not better to use single allocator for all order books
-	// TODO: Test how GC behaves in both cases (single allocator or own allocator for each order book)
-	// allocator := NewAllocator()
-	allocator := e.allocator
-
 	// Create order book
-	orderBook = NewOrderBook(allocator, symbol, spModesConfig, defaultOrderBookTaskQueueSize)
+	orderBook = NewOrderBook(symbol, spModesConfig, defaultOrderBookTaskQueueSize)
 	orderBook.marketPrice = marketPrice
 	e.orderBooks[symbol.id] = orderBook
 	e.orderBooksCount++
@@ -285,15 +275,6 @@ func (e *Engine) AddOrder(order Order) error {
 	// Validate order parameters
 	if err := order.Validate(ob); err != nil {
 		return err
-	}
-
-	// Prevent underflow with small digits (it must be covered by fees in usage)
-	if !order.available.IsMax() {
-		if order.side == OrderSideBuy {
-			order.AddAvailable(ob.symbol.lotSizeLimits.Step)
-		} else {
-			order.AddAvailable(ob.symbol.quoteLotSizeLimits.Step)
-		}
 	}
 
 	// Validate order parameters
@@ -797,7 +778,7 @@ func (e *Engine) ExecuteOrder(symbolID uint32, orderID uint64, quantity Uint) er
 			ob.orders.Delete(order.id)
 
 			// Release the order
-			e.allocator.PutOrder(order)
+			ob.allocator.PutOrder(order)
 		}
 
 		// Automatic order matching
@@ -887,7 +868,7 @@ func (e *Engine) ExecuteOrderByPrice(symbolID uint32, orderID uint64, price Uint
 			ob.orders.Delete(order.id)
 
 			// Release the order
-			e.allocator.PutOrder(order)
+			ob.allocator.PutOrder(order)
 		}
 
 		// Automatic order matching

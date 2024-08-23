@@ -15,7 +15,7 @@ func (e *Engine) addLimitOrder(ob *OrderBook, order Order, recursive bool) error
 	}
 
 	// Create a new order
-	newOrder := e.allocator.GetOrder()
+	newOrder := ob.allocator.GetOrder()
 	*newOrder = order
 
 	// Call the corresponding handler
@@ -101,7 +101,7 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 	}
 
 	// Create a new order
-	newOrder := e.allocator.GetOrder()
+	newOrder := ob.allocator.GetOrder()
 	*newOrder = order
 
 	// Find the market price for further stop calculation
@@ -170,7 +170,7 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 			ob.orders.Delete(newOrder.id)
 
 			// Release the order
-			e.allocator.PutOrder(newOrder)
+			ob.allocator.PutOrder(newOrder)
 		}
 	}
 
@@ -189,7 +189,7 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 	}
 
 	// Create a new order
-	newOrder := e.allocator.GetOrder()
+	newOrder := ob.allocator.GetOrder()
 	*newOrder = order
 
 	// Find the market price for further stop calculation
@@ -284,8 +284,9 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 // Executing orders
 ////////////////////////////////////////////////////////////////
 
-// executeOrder processes the fact of order execution
-func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Uint) error {
+// executeOrder processes the fact of order execution.
+// bool flag is true when order is executed/deleted.
+func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Uint) (bool, error) {
 	// Decrease the order available quantity
 	if order.IsLockingQuote() {
 		order.SubAvailable(quoteQty)
@@ -300,38 +301,44 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Ui
 	// Check and delete linked orders
 	err := e.deleteLinkedOrder(ob, order, true)
 	if err != nil {
-		return fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
+		return false, fmt.Errorf("failed to delete linked order (id: %d): %w", order.ID(), err)
 	}
 
 	// Check market mode
 	if order.marketQuoteMode {
+		executed := false
 		order.SubRestQuoteQuantity(quoteQty)
 		if !order.IsExecuted() {
 			e.handler.OnUpdateOrder(ob, order)
 		} else {
+			executed = true
 			e.handler.OnDeleteOrder(ob, order)
 			e.deleteOrder(ob, order, true)
 		}
 
-		return nil
+		return executed, nil
 	}
 
 	// Reduce the order rest quantities
 	visible := order.VisibleQuantity()
 	order.SubRestQuantity(qty)
 	visible = visible.Sub(order.VisibleQuantity())
+	executed := false
 
 	if !order.IsExecuted() {
 		e.handler.OnUpdateOrder(ob, order)
 	} else {
+		executed = true
 		e.handler.OnDeleteOrder(ob, order)
 	}
+
+	// TODO: this part is copy from deleteOrder but without matching. Need unify.
 
 	if order.priceLevel != nil {
 		// Reduce the order in the order book
 		priceLevelUpdate, err := ob.reduceOrder(ob.treeForOrder(order), order, qty, visible)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		e.handleUpdatePriceLevel(ob, priceLevelUpdate)
@@ -343,10 +350,10 @@ func (e *Engine) executeOrder(ob *OrderBook, order *Order, qty Uint, quoteQty Ui
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
-	return nil
+	return executed, nil
 }
 
 ////////////////////////////////////////////////////////////////
@@ -385,7 +392,7 @@ func (e *Engine) reduceOrder(ob *OrderBook, order *Order, quantity Uint, recursi
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	// Automatic order matching
@@ -466,7 +473,7 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	// Automatic order matching
@@ -538,7 +545,7 @@ func (e *Engine) replaceOrder(ob *OrderBook, order *Order, newID uint64, newPric
 		e.handler.OnDeleteOrder(ob, order)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	// Automatic order matching
@@ -576,7 +583,7 @@ func (e *Engine) deleteOrder(ob *OrderBook, order *Order, recursive bool) error 
 	ob.orders.Delete(order.id)
 
 	// Release the order
-	e.allocator.PutOrder(order)
+	ob.allocator.PutOrder(order)
 
 	// Automatic order matching
 	if e.matching && !recursive {
@@ -611,12 +618,10 @@ func (e *Engine) deleteLinkedOrder(ob *OrderBook, order *Order, recursive bool) 
 	return nil
 }
 
-func (e *Engine) cutRemainders(ob *OrderBook, order *Order) {
-	if order.IsExecuted() {
-		return
-	}
-
-	restQuantity, restQuoteQuantity := order.RestQuantity(), order.RestQuoteQuantity()
+// cutRemainders cuts parts of orders which are less than configured steps,
+// bool flag is true when order is executed/deleted.
+func (e *Engine) cutRemainders(ob *OrderBook, order *Order) bool {
+	restQuantity, restQuoteQuantity, executed := order.RestQuantity(), order.RestQuoteQuantity(), false
 
 	switch {
 	case
@@ -629,9 +634,10 @@ func (e *Engine) cutRemainders(ob *OrderBook, order *Order) {
 
 		// Delete order.
 		e.deleteOrder(ob, order, true)
+		executed = true
 	}
 
-	return
+	return executed
 }
 
 // calcRestAvailableQuantities calculate quantities for order with specified price.

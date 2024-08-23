@@ -55,19 +55,23 @@ func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Nod
 	if node == nil {
 		return
 	}
-	priceLevel := node.Value()
 
 	// Activate all stop orders
-	for orderPtr := priceLevel.queue.Front(); orderPtr != nil && orderPtr.Value != nil; orderPtr = orderPtr.Next() {
-		if orderPtr.Value.stopPriceMode != stopPriceMode {
+	it := node.Value().Iterator()
+	for it.Next() {
+		order := it.Current().Value
+		if order == nil {
+			break
+		}
+		if order.stopPriceMode != stopPriceMode {
 			continue
 		}
 
 		// Check the arbitrage bid/ask prices
 		var arbitrage bool
 
-		stopPrice := orderPtr.Value.stopPrice
-		if orderPtr.Value.takeProfit {
+		stopPrice := order.stopPrice
+		if order.takeProfit {
 			if side == OrderSideBuy {
 				arbitrage = stopPrice.GreaterThanOrEqualTo(activationPrice)
 			} else {
@@ -85,16 +89,16 @@ func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Nod
 			continue
 		}
 
-		switch orderPtr.Value.orderType {
+		switch order.orderType {
 		case OrderTypeStop, OrderTypeTrailingStop:
 			// Activate the stop order
-			activated, err = e.activateStopOrder(ob, orderPtr.Value)
+			activated, err = e.activateStopOrder(ob, order)
 			if err != nil {
 				return false, fmt.Errorf("failed to activate stop order: %w", err)
 			}
 		case OrderTypeStopLimit, OrderTypeTrailingStopLimit:
 			// Activate the stop-limit order
-			activated, err = e.activateStopLimitOrder(ob, orderPtr.Value)
+			activated, err = e.activateStopLimitOrder(ob, order)
 			if err != nil {
 				return false, fmt.Errorf("failed to activate stop-limit order: %w", err)
 			}
@@ -137,7 +141,7 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	return true, nil
@@ -179,7 +183,7 @@ func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, erro
 		ob.orders.Delete(order.id)
 
 		// Release the order
-		e.allocator.PutOrder(order)
+		ob.allocator.PutOrder(order)
 	}
 
 	// Add remaining order in order book for GTC
@@ -237,8 +241,10 @@ func (e *Engine) recalculateTrailingStopPrice(ob *OrderBook, side OrderSide, nod
 		recalculated := false
 
 		// Travel through orders at current price levels
-		for orderPtr := current.Value().queue.Front(); orderPtr != nil; orderPtr = orderPtr.Next() {
-			order := orderPtr.Value
+		it := current.Value().Iterator()
+		// for orderPtr := current.Value().queue.Front(); orderPtr != nil; orderPtr = orderPtr.Next() {
+		for it.Next() {
+			order := it.Current().Value
 			oldStopPrice := order.stopPrice
 			newStopPrice := ob.calculateTrailingStopPrice(order)
 

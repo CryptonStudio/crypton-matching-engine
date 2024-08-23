@@ -9,6 +9,9 @@ import (
 
 // Allocator is an object encapsulating all used objects allocation using sync.Pool internally.
 type Allocator struct {
+	// If allocator is using pool (true is experimental)
+	// TODO: debug unpredictable behavior with pool usage.
+	usePool bool
 
 	// Price levels
 	priceLevels sync.Pool
@@ -22,11 +25,20 @@ type Allocator struct {
 }
 
 // NewAllocator creates and returns new Allocator instance.
-func NewAllocator() *Allocator {
-	a := new(Allocator)
+func NewAllocator(usePool bool) *Allocator {
+	a := Allocator{
+		usePool: usePool,
+	}
+
+	if !a.usePool {
+		return &a
+	}
+
+	// Pool setup.
+
 	// Price levels
 	a.priceLevels = sync.Pool{New: func() any {
-		return NewPriceLevelL3(a)
+		return NewPriceLevelL3()
 	}}
 	// Orders
 	a.orders = sync.Pool{New: func() any {
@@ -39,22 +51,58 @@ func NewAllocator() *Allocator {
 	a.orderQueueElements = sync.Pool{New: func() any {
 		return new(list.Element[*Order])
 	}}
-	return a
+
+	return &a
 }
 
 ////////////////////////////////////////////////////////////////
 // Price levels
 ////////////////////////////////////////////////////////////////
 
+// NewPriceLevelTree allocates PriceLevelTree instance in direct order.
+func (a *Allocator) NewPriceLevelTree() avl.Tree[Uint, *PriceLevelL3] {
+	if !a.usePool {
+		return avl.NewTree[Uint, *PriceLevelL3](
+			func(a, b Uint) int { return a.Cmp(b) },
+		)
+	}
+
+	return avl.NewTreePooled[Uint, *PriceLevelL3](
+		func(a, b Uint) int { return a.Cmp(b) },
+		&a.priceLevelNodes,
+	)
+}
+
+// NewPriceLevelReversedTree releases PriceLevelTree instance in reversed order.
+func (a *Allocator) NewPriceLevelReversedTree() avl.Tree[Uint, *PriceLevelL3] {
+	if !a.usePool {
+		return avl.NewTree[Uint, *PriceLevelL3](
+			func(a, b Uint) int { return -a.Cmp(b) },
+		)
+	}
+
+	return avl.NewTreePooled[Uint, *PriceLevelL3](
+		func(a, b Uint) int { return -a.Cmp(b) },
+		&a.priceLevelNodes,
+	)
+}
+
 // GetPriceLevel allocates PriceLevelL3 instance.
 func (a *Allocator) GetPriceLevel() *PriceLevelL3 {
-	priceLevel := a.priceLevels.Get().(*PriceLevelL3)
+	if !a.usePool {
+		return NewPriceLevelL3()
+	}
+
 	// Get from the pool
-	return priceLevel
+	return a.priceLevels.Get().(*PriceLevelL3)
 }
 
 // PutPriceLevel releases PriceLevelL3 instance.
 func (a *Allocator) PutPriceLevel(priceLevel *PriceLevelL3) {
+	if !a.usePool {
+		return
+	}
+
 	// Clean up the instance before releasing
 	priceLevel.Clean()
 	// Put back to the pool
@@ -67,13 +115,20 @@ func (a *Allocator) PutPriceLevel(priceLevel *PriceLevelL3) {
 
 // GetOrder allocates Order instance.
 func (a *Allocator) GetOrder() *Order {
-	order := a.orders.Get().(*Order)
+	if !a.usePool {
+		return new(Order)
+	}
+
 	// Get from the pool
-	return order
+	return a.orders.Get().(*Order)
 }
 
 // PutOrder releases Order instance.
 func (a *Allocator) PutOrder(order *Order) {
+	if !a.usePool {
+		return
+	}
+
 	// Clean up the instance before releasing
 	order.Clean()
 	// Put back to the pool

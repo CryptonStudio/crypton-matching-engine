@@ -65,30 +65,21 @@ type OrderBook struct {
 }
 
 // NewOrderBook creates and returns new OrderBook instance.
-func NewOrderBook(allocator *Allocator, symbol Symbol, spModesConfig StopPriceModeConfig, taskQueueSize int) *OrderBook {
-	newPriceLevelTree := func(allocator *Allocator) avl.Tree[Uint, *PriceLevelL3] {
-		return avl.NewTreePooled[Uint, *PriceLevelL3](
-			func(a, b Uint) int { return a.Cmp(b) },
-			&allocator.priceLevelNodes,
-		)
-	}
-	newPriceLevelReversedTree := func(allocator *Allocator) avl.Tree[Uint, *PriceLevelL3] {
-		return avl.NewTreePooled[Uint, *PriceLevelL3](
-			func(a, b Uint) int { return -a.Cmp(b) },
-			&allocator.priceLevelNodes,
-		)
-	}
+func NewOrderBook(symbol Symbol, spModesConfig StopPriceModeConfig, taskQueueSize int) *OrderBook {
+	// Prepare allocator
+	// TODO: Test how GC behaves in both cases (with/without pool)
+	allocator := NewAllocator(true)
 
 	return &OrderBook{
 		allocator:        allocator,
 		symbol:           symbol,
-		bids:             newPriceLevelReversedTree(allocator),
-		asks:             newPriceLevelTree(allocator),
+		bids:             allocator.NewPriceLevelReversedTree(),
+		asks:             allocator.NewPriceLevelTree(),
 		spModes:          spModesConfig.Modes(),
-		buyStop:          newPriceLevelReversedTree(allocator),
-		sellStop:         newPriceLevelTree(allocator),
-		trailingBuyStop:  newPriceLevelReversedTree(allocator),
-		trailingSellStop: newPriceLevelTree(allocator),
+		buyStop:          allocator.NewPriceLevelReversedTree(),
+		sellStop:         allocator.NewPriceLevelTree(),
+		trailingBuyStop:  allocator.NewPriceLevelReversedTree(),
+		trailingSellStop: allocator.NewPriceLevelTree(),
 		marketPrice:      NewZeroUint(),
 		lastBidPrice:     NewZeroUint(),
 		lastAskPrice:     NewMaxUint(),
@@ -330,7 +321,6 @@ func (ob *OrderBook) addOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Order)
 
 	// Enqueue the new order to the order queue of the price level
 	order.orderQueued = priceLevel.queue.PushBack(order)
-	priceLevel.orders++
 
 	// Cache the price level in the given order
 	order.priceLevel = node
@@ -376,7 +366,6 @@ func (ob *OrderBook) reduceOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 	if order.IsExecuted() {
 		// Dequeue the empty order from the order queue of the price level
 		priceLevel.queue.Remove(order.orderQueued)
-		priceLevel.orders--
 		order.orderQueued = nil
 
 		// Clear the price level cache in the given order
@@ -395,7 +384,7 @@ func (ob *OrderBook) reduceOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 	}
 
 	// Delete the empty price level
-	if priceLevel.orders == 0 {
+	if priceLevel.Orders() == 0 {
 		err = ob.deletePriceLevel(tree, priceLevel.price)
 		if err != nil {
 			return
@@ -435,7 +424,6 @@ func (ob *OrderBook) deleteOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 
 	// Dequeue the deleted order from the order queue of the price level
 	priceLevel.queue.Remove(order.orderQueued)
-	priceLevel.orders--
 	order.orderQueued = nil
 
 	// Clear the price level cache in the given order
@@ -453,7 +441,7 @@ func (ob *OrderBook) deleteOrder(tree *avl.Tree[Uint, *PriceLevelL3], order *Ord
 	}
 
 	// Delete the empty price level
-	if priceLevel.orders == 0 {
+	if priceLevel.Orders() == 0 {
 		err = ob.deletePriceLevel(tree, priceLevel.price)
 		if err != nil {
 			return

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMemoryDmg(t *testing.T) {
+func TestAllocatorCollisions(t *testing.T) {
 	const N = 100_000
 	symIDS := []uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	symbols := generateSymbols(symIDS)
@@ -73,7 +73,7 @@ func TestMemoryDmg(t *testing.T) {
 		}
 	}
 
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 1)
 
 	for _, id := range symIDS {
 		ob := engine.OrderBook(id)
@@ -81,7 +81,7 @@ func TestMemoryDmg(t *testing.T) {
 			for orderPtr := ob.TopAsk().Value().Queue().Front(); orderPtr != nil; {
 				orderPtrNext := orderPtr.Next()
 				order := orderPtr.Value
-				require.True(t, !order.Available().IsZero(), "symbol %d, order %d avail=0", id, order.ID())
+				require.True(t, !order.Available().IsZero(), "symbol %d, order %d avail=0: %#v", id, order.ID(), order)
 				require.Equal(t, matching.OrderSideSell, order.Side(), "symbol %d, order %d side", id, order.ID())
 				orderPtr = orderPtrNext
 			}
@@ -99,7 +99,7 @@ func TestMemoryDmg(t *testing.T) {
 	}
 
 	engine.Stop(true)
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 1)
 }
 
 func generateSymbols(ids []uint32) []matching.Symbol {
@@ -147,12 +147,12 @@ func generateOrderSequence(id uint64, n int, symbols []uint32) ([]sequenceItem, 
 		side := randomChoice([]matching.OrderSide{matching.OrderSideBuy, matching.OrderSideSell})
 		typ := randomChoice([]matching.OrderType{
 			matching.OrderTypeLimit,
-			// matching.OrderTypeStopLimit,
-			// matching.OrderTypeMarket,
-			// matching.OrderTypeStop,
-			// orderTypeOCO,
-			// orderTypeTPSLLimit,
-			// orderTypeTPSLMarket,
+			matching.OrderTypeStopLimit,
+			matching.OrderTypeMarket,
+			matching.OrderTypeStop,
+			orderTypeOCO,
+			orderTypeTPSLLimit,
+			orderTypeTPSLMarket,
 		})
 		dir := randomChoice([]matching.OrderDirection{matching.OrderDirectionClose, matching.OrderDirectionOpen})
 		tif := randomChoice([]matching.OrderTimeInForce{matching.OrderTimeInForceFOK, matching.OrderTimeInForceGTC, matching.OrderTimeInForceIOC})

@@ -505,6 +505,9 @@ func (fs *fuzzStorage) unlockAmount(_ *matching.OrderBook, upd matching.OrderUpd
 	fs.Lock()
 	defer fs.Unlock()
 
+	if upd.Quantity.IsZero() && upd.QuoteQuantity.IsZero() {
+		fs.t.Fatalf("zero execution for order %d", upd.ID)
+	}
 	data, ok := fs.orders[upd.ID]
 	if !ok {
 		fs.t.Fatalf("can't found locked for order %d", upd.ID)

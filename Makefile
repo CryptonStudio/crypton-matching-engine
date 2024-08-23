@@ -23,4 +23,4 @@ fuzz-chain:
 	cd matching/tests && go clean -fuzzcache && go test -fuzz FuzzChainOrders
 
 test-mem:
-	cd matching/tests && go test -run TestMemoryDmg
+	cd matching/tests && go test -run TestAllocatorCollisions

@@ -118,6 +118,7 @@ func testAllOrders(t *testing.T, a []byte) {
 			}
 			err := intOrder.CheckLocked()
 			if err != nil {
+				intOrder.Debug()
 				t.Logf("error: %s", err)
 				t.FailNow()
 			}
@@ -147,6 +148,8 @@ func testAllOrders(t *testing.T, a []byte) {
 			}
 
 			if err != nil {
+				mainOrderFromOB.Debug()
+				linkedOrderFromOB.Debug()
 				t.Logf("error: %s", err)
 				t.FailNow()
 			}

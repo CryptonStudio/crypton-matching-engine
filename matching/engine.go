@@ -278,7 +278,7 @@ func (e *Engine) AddOrder(order Order) error {
 	}
 
 	// Validate order parameters
-	if err := order.CheckLocked(&order); err != nil {
+	if err := order.CheckLocked(); err != nil {
 		return err
 	}
 

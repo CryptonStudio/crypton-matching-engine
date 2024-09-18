@@ -111,12 +111,41 @@ func testAllOrders(t *testing.T, a []byte) {
 
 	ob := engine.OrderBook(1)
 	for _, oo := range data.ordersSequence {
-		for _, o := range oo.orders {
-			intOrder := ob.Order(o.ID())
+		if len(oo.orders) == 1 {
+			intOrder := ob.Order(oo.orders[0].ID())
 			if intOrder == nil {
 				continue
 			}
-			err := intOrder.CheckLocked(nil)
+			err := intOrder.CheckLocked()
+			if err != nil {
+				t.Logf("error: %s", err)
+				t.FailNow()
+			}
+		}
+
+		if len(oo.orders) == 2 {
+			mainOrderFromOB := ob.Order(oo.orders[0].ID())
+			linkedOrderFromOB := ob.Order(oo.orders[1].ID())
+
+			if mainOrderFromOB == nil && linkedOrderFromOB == nil {
+				continue
+			}
+
+			if mainOrderFromOB != nil && linkedOrderFromOB != nil {
+				switch {
+				case oo.orderType == orderTypeOCO:
+					err = matching.CheckLockedOCO(mainOrderFromOB, linkedOrderFromOB)
+				case oo.orderType == orderTypeTPSLLimit:
+					err = matching.CheckLockedTPSL(mainOrderFromOB, linkedOrderFromOB)
+				case oo.orderType == orderTypeTPSLMarket:
+					err = matching.CheckLockedTPSLMarket(mainOrderFromOB, linkedOrderFromOB)
+				}
+			} else if mainOrderFromOB != nil {
+				err = mainOrderFromOB.CheckLocked()
+			} else {
+				err = linkedOrderFromOB.CheckLocked()
+			}
+
 			if err != nil {
 				t.Logf("error: %s", err)
 				t.FailNow()

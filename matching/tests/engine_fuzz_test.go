@@ -108,6 +108,21 @@ func testAllOrders(t *testing.T, a []byte) {
 	}
 
 	engine.SetIndexMarkPricesForOrderBook(data.symbol.ID(), data.endIndexPrice, data.endMarkPrice, true) //nolint:errcheck
+
+	ob := engine.OrderBook(1)
+	for _, oo := range data.ordersSequence {
+		for _, o := range oo.orders {
+			intOrder := ob.Order(o.ID())
+			if intOrder == nil {
+				continue
+			}
+			err := intOrder.CheckLocked(nil)
+			if err != nil {
+				t.Logf("error: %s", err)
+				t.FailNow()
+			}
+		}
+	}
 }
 
 // Data parsing:

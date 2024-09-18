@@ -649,9 +649,7 @@ func calcRestAvailableQuantities(order *Order, price Uint) (Uint, Uint) {
 	case restQuantity.IsZero() && restQuoteQuantity.IsZero():
 		return NewZeroUint(), NewZeroUint()
 	case restQuantity.IsZero():
-		restQuantityByQuote, rem := restQuoteQuantity.Mul64(UintPrecision).QuoRem(price)
-		restQuantity = restQuantityByQuote
-		restQuoteQuantity = restQuoteQuantity.Sub(rem.Div64(UintPrecision))
+		restQuantity, restQuoteQuantity = calcQuantitiesFromQuoteAndPrice(restQuoteQuantity, price)
 	case restQuoteQuantity.IsZero():
 		restQuoteQuantity = restQuantity.Mul(price).Div64(UintPrecision)
 	}
@@ -665,10 +663,24 @@ func calcRestAvailableQuantities(order *Order, price Uint) (Uint, Uint) {
 		restQuoteQuantity = order.Available().Mul(price).Div64(UintPrecision)
 	// Available in quote
 	case order.IsLockingQuote() && order.Available().LessThan(restQuoteQuantity):
-		restQuantityByAvailable, rem := order.Available().Mul64(UintPrecision).QuoRem(price)
-		restQuantity = restQuantityByAvailable
-		restQuoteQuantity = order.Available().Sub(rem.Div64(UintPrecision))
+		restQuantity, restQuoteQuantity = calcQuantitiesFromQuoteAndPrice(order.Available(), price)
 	}
 
 	return restQuantity, restQuoteQuantity
+}
+
+func calcQuantitiesFromQuoteAndPrice(quoteQuantity Uint, price Uint) (Uint, Uint) {
+	quantity, rem := quoteQuantity.Mul64(UintPrecision).QuoRem(price)
+	if rem.IsZero() {
+		return quantity, quoteQuantity
+	}
+
+	remDivided := rem.Div64(UintPrecision)
+	if remDivided.IsZero() {
+		rem = NewUint(1)
+	} else {
+		rem = remDivided
+	}
+
+	return quantity, quoteQuantity.Sub(rem)
 }

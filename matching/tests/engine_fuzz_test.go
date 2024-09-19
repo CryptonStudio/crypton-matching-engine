@@ -27,7 +27,7 @@ func FuzzAllOrders(f *testing.F) {
 }
 
 func TestFailedExample(t *testing.T) {
-	testAllOrders(t, []byte("01\x010100000\x01\x01\x01\x01\x01000\x030000\x0100\x010000\xfe\x02\x01\x02\x00000\x030010\x0200\x030000"))
+	testAllOrders(t, []byte("01\x010100000\x01\x01\x01\x01\x01000\x010000\x0100\x010000\b\x02\x01\x02\x00000\x010010\x0300\x010000"))
 }
 
 func testAllOrders(t *testing.T, a []byte) {
@@ -108,6 +108,53 @@ func testAllOrders(t *testing.T, a []byte) {
 	}
 
 	engine.SetIndexMarkPricesForOrderBook(data.symbol.ID(), data.endIndexPrice, data.endMarkPrice, true) //nolint:errcheck
+
+	ob := engine.OrderBook(1)
+	for _, oo := range data.ordersSequence {
+		if len(oo.orders) == 1 {
+			intOrder := ob.Order(oo.orders[0].ID())
+			if intOrder == nil {
+				continue
+			}
+			err := intOrder.CheckLocked()
+			if err != nil {
+				intOrder.Debug()
+				t.Logf("error: %s", err)
+				t.FailNow()
+			}
+		}
+
+		if len(oo.orders) == 2 {
+			mainOrderFromOB := ob.Order(oo.orders[0].ID())
+			linkedOrderFromOB := ob.Order(oo.orders[1].ID())
+
+			if mainOrderFromOB == nil && linkedOrderFromOB == nil {
+				continue
+			}
+
+			if mainOrderFromOB != nil && linkedOrderFromOB != nil {
+				switch {
+				case oo.orderType == orderTypeOCO:
+					err = matching.CheckLockedOCO(mainOrderFromOB, linkedOrderFromOB)
+				case oo.orderType == orderTypeTPSLLimit:
+					err = matching.CheckLockedTPSL(mainOrderFromOB, linkedOrderFromOB)
+				case oo.orderType == orderTypeTPSLMarket:
+					err = matching.CheckLockedTPSLMarket(mainOrderFromOB, linkedOrderFromOB)
+				}
+			} else if mainOrderFromOB != nil {
+				err = mainOrderFromOB.CheckLocked()
+			} else {
+				err = linkedOrderFromOB.CheckLocked()
+			}
+
+			if err != nil {
+				mainOrderFromOB.Debug()
+				linkedOrderFromOB.Debug()
+				t.Logf("error: %s", err)
+				t.FailNow()
+			}
+		}
+	}
 }
 
 // Data parsing:

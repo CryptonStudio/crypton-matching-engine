@@ -641,7 +641,7 @@ func (e *Engine) cutRemainders(ob *OrderBook, order *Order) bool {
 }
 
 // calcRestAvailableQuantities calculate quantities for order with specified price.
-func calcRestAvailableQuantities(order *Order, makerPrice Uint) (Uint, Uint) {
+func calcRestAvailableQuantities(order *Order, price Uint) (Uint, Uint) {
 	// Calc rest quantities.
 
 	restQuantity, restQuoteQuantity := order.RestQuantity(), order.RestQuoteQuantity()
@@ -649,9 +649,9 @@ func calcRestAvailableQuantities(order *Order, makerPrice Uint) (Uint, Uint) {
 	case restQuantity.IsZero() && restQuoteQuantity.IsZero():
 		return NewZeroUint(), NewZeroUint()
 	case restQuantity.IsZero():
-		restQuantity, _ = restQuoteQuantity.Mul64(UintPrecision).QuoRem(makerPrice)
+		restQuantity, restQuoteQuantity = calcQuantitiesFromQuoteAndPrice(restQuoteQuantity, price)
 	case restQuoteQuantity.IsZero():
-		restQuoteQuantity = restQuantity.Mul(makerPrice).Div64(UintPrecision)
+		restQuoteQuantity = restQuantity.Mul(price).Div64(UintPrecision)
 	}
 
 	// Check available.
@@ -660,12 +660,27 @@ func calcRestAvailableQuantities(order *Order, makerPrice Uint) (Uint, Uint) {
 	// Available in base
 	case order.IsLockingBase() && order.Available().LessThan(restQuantity):
 		restQuantity = order.Available()
-		restQuoteQuantity = order.Available().Mul(makerPrice).Div64(UintPrecision)
+		restQuoteQuantity = order.Available().Mul(price).Div64(UintPrecision)
 	// Available in quote
 	case order.IsLockingQuote() && order.Available().LessThan(restQuoteQuantity):
-		restQuantity, _ = order.Available().Mul64(UintPrecision).QuoRem(makerPrice)
-		restQuoteQuantity = order.Available()
+		restQuantity, restQuoteQuantity = calcQuantitiesFromQuoteAndPrice(order.Available(), price)
 	}
 
 	return restQuantity, restQuoteQuantity
+}
+
+func calcQuantitiesFromQuoteAndPrice(quoteQuantity Uint, price Uint) (Uint, Uint) {
+	quantity, rem := quoteQuantity.Mul64(UintPrecision).QuoRem(price)
+	if rem.IsZero() {
+		return quantity, quoteQuantity
+	}
+
+	remDivided := rem.Div64(UintPrecision)
+	if remDivided.IsZero() {
+		rem = NewUint(1)
+	} else {
+		rem = remDivided
+	}
+
+	return quantity, quoteQuantity.Sub(rem)
 }

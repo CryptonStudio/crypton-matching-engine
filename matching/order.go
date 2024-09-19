@@ -442,7 +442,7 @@ func (o *Order) IsLockingQuote() bool {
 // CheckLocked checks locked quantity,
 // all combinations of orders need exact minimum locked amount,
 // except Buy Market Base, Sell Market Quote.
-func (o *Order) CheckLocked(order *Order) error {
+func (o *Order) CheckLocked() error {
 	var needLocked Uint
 	// Close Limit, Close Stop-limit, Close Market, Close Stop
 	if o.IsLockingBase() && !o.quantity.IsZero() {

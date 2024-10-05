@@ -20,6 +20,7 @@ func FuzzAllOrders(f *testing.F) {
 
 	f.Add([]byte{})
 	f.Add([]byte("0x\x010100000\x01\x01\x01\x01\x01x00\x010000\x0100\x010000\x03\x02\x01\x02\x00000\x030000\x0100\x010000"))
+	f.Add([]byte("0\xff\x0101\x010000\x01\x01\x01\x01\x01\xcf00\x010000\x0100\x010000\x03\x02\x01\x02\x00020\x030000\x0100\x010000\x03\x02\x01\x02\x000 0\x030000\x0100\x010000"))
 
 	f.Fuzz(func(t *testing.T, a []byte) {
 		testAllOrders(t, a)
@@ -27,7 +28,7 @@ func FuzzAllOrders(f *testing.F) {
 }
 
 func TestFailedExample(t *testing.T) {
-	testAllOrders(t, []byte("01\x010100000\x01\x01\x01\x01\x01000\x010000\x0100\x010000\b\x02\x01\x02\x00000\x010010\x0300\x010000"))
+	testAllOrders(t, []byte("0\xff\x0101\x010000\x01\x01\x01\x01\x01\xcf00\x010000\x0100\x010000\x03\x02\x01\x02\x00020\x030000\x0100\x010000\x03\x02\x01\x02\x000 0\x030000\x0100\x010000"))
 }
 
 func testAllOrders(t *testing.T, a []byte) {

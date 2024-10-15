@@ -227,7 +227,7 @@ func (a allDataForFuzz) String() string {
 			lines = append(lines, "orders pair:")
 		}
 		for i := range oo.orders {
-			lines = append(lines, fmt.Sprintf("id=%d type=%s side=%s, direction=%s, tif=%s, price=%s, stop price=%s, quantity=%s quoteQuant=%s availableQty=%s restQty=%s",
+			lines = append(lines, fmt.Sprintf("id=%d type=%s side=%s, direction=%s, tif=%s, price=%s, stop price=%s, quantity=%s quoteQuant=%s availableQty=%s restQty=%s slippage=%s pricemode=%s",
 				oo.orders[i].ID(),
 				oo.orders[i].Type().String(),
 				oo.orders[i].Side().String(),
@@ -239,6 +239,8 @@ func (a allDataForFuzz) String() string {
 				oo.orders[i].QuoteQuantity().ToFloatString(),
 				oo.orders[i].Available().ToFloatString(),
 				oo.orders[i].RestQuantity().ToFloatString(),
+				oo.orders[i].MarketSlippage().ToFloatString(),
+				oo.orders[i].StopPriceMode().String(),
 			))
 		}
 	}

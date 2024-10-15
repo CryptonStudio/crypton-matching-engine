@@ -448,13 +448,22 @@ func (o *Order) CheckLocked() error {
 	if o.IsLockingBase() && !o.quantity.IsZero() {
 		needLocked = o.restQuantity
 	}
+
 	// Open Limit, Open Stop-limit
-	if o.IsLockingQuote() && !o.quantity.IsZero() && !o.price.IsZero() {
-		needLocked = o.restQuantity.Mul(o.price).Div64(UintPrecision)
-	}
+	// TODO: result of this calculation can be greater than available by natural reason
+	// (result of properties of fixed point calculation)
+	// We must rework matching calculation for this check or just delete it.
+	// if o.IsLockingQuote() && !o.quantity.IsZero() && !o.price.IsZero() {
+	// 	needLocked = o.restQuantity.Mul(o.price).Div64(UintPrecision)
+	// }
+
 	// Open Market Quote, Open Stop Quote
 	if o.IsLockingQuote() && !o.quoteQuantity.IsZero() {
 		needLocked = o.restQuoteQuantity
+	}
+
+	if o.available.IsZero() {
+		return ErrNotEnoughLockedAmount
 	}
 
 	if o.available.LessThan(needLocked) {

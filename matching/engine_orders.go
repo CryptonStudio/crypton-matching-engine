@@ -670,17 +670,6 @@ func calcRestAvailableQuantities(order *Order, price Uint) (Uint, Uint) {
 }
 
 func calcQuantitiesFromQuoteAndPrice(quoteQuantity Uint, price Uint) (Uint, Uint) {
-	quantity, rem := quoteQuantity.Mul64(UintPrecision).QuoRem(price)
-	if rem.IsZero() {
-		return quantity, quoteQuantity
-	}
-
-	remDivided := rem.Div64(UintPrecision)
-	if remDivided.IsZero() {
-		rem = NewUint(1)
-	} else {
-		rem = remDivided
-	}
-
-	return quantity, quoteQuantity.Sub(rem)
+	quantity, _ := quoteQuantity.Mul64(UintPrecision).QuoRem(price)
+	return quantity, quoteQuantity
 }

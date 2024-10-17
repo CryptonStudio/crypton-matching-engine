@@ -435,7 +435,7 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 	// In-Flight Mitigation (IFM)
 	if mitigate {
 		// This calculation has the goal of preventing orders from being overfilled
-		if order.quantity.GreaterThan(order.executedQuantity) {
+		if newQuantity.GreaterThan(order.executedQuantity) {
 			order.SubRestQuantity(order.executedQuantity)
 		} else {
 			order.restQuantity = NewZeroUint()

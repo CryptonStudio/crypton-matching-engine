@@ -15,6 +15,7 @@ type Handler interface {
 
 	// Orders handlers
 	OnAddOrder(orderBook *OrderBook, order *Order)
+	OnActivateOrder(orderBook *OrderBook, order *Order)
 	OnUpdateOrder(orderBook *OrderBook, order *Order)
 	OnDeleteOrder(orderBook *OrderBook, order *Order)
 

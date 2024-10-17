@@ -139,6 +139,9 @@ func (e *Engine) addStopOrder(ob *OrderBook, order Order, recursive bool) error 
 	// Check the market price
 	arbitrage := newOrder.stopPrice.Equals(marketPrice)
 	if arbitrage {
+		// Call handler before further actions
+		e.handler.OnActivateOrder(ob, newOrder)
+
 		// delete linked order
 		e.deleteLinkedOrder(ob, newOrder, true)
 
@@ -232,6 +235,9 @@ func (e *Engine) addStopLimitOrder(ob *OrderBook, order Order, recursive bool) e
 			return err
 		}
 	} else {
+		// Call handler before further actions
+		e.handler.OnActivateOrder(ob, newOrder)
+
 		// delete linked order
 		e.deleteLinkedOrder(ob, newOrder, true)
 
@@ -429,7 +435,7 @@ func (e *Engine) modifyOrder(ob *OrderBook, order *Order, newPrice Uint, newQuan
 	// In-Flight Mitigation (IFM)
 	if mitigate {
 		// This calculation has the goal of preventing orders from being overfilled
-		if newQuantity.GreaterThan(order.executedQuantity) {
+		if order.quantity.GreaterThan(order.executedQuantity) {
 			order.SubRestQuantity(order.executedQuantity)
 		} else {
 			order.restQuantity = NewZeroUint()

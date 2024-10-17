@@ -608,9 +608,10 @@ func (fs *fuzzStorage) OnUpdatePriceLevel(orderBook *matching.OrderBook, update 
 func (fs *fuzzStorage) OnDeletePriceLevel(orderBook *matching.OrderBook, update matching.PriceLevelUpdate) {
 }
 
-func (fs *fuzzStorage) OnAddOrder(orderBook *matching.OrderBook, order *matching.Order)    {}
-func (fs *fuzzStorage) OnUpdateOrder(orderBook *matching.OrderBook, order *matching.Order) {}
-func (fs *fuzzStorage) OnDeleteOrder(orderBook *matching.OrderBook, order *matching.Order) {}
+func (fs *fuzzStorage) OnAddOrder(orderBook *matching.OrderBook, order *matching.Order)      {}
+func (fs *fuzzStorage) OnActivateOrder(orderBook *matching.OrderBook, order *matching.Order) {}
+func (fs *fuzzStorage) OnUpdateOrder(orderBook *matching.OrderBook, order *matching.Order)   {}
+func (fs *fuzzStorage) OnDeleteOrder(orderBook *matching.OrderBook, order *matching.Order)   {}
 
 func (fs *fuzzStorage) OnExecuteOrder(orderBook *matching.OrderBook, orderID uint64, price matching.Uint, quantity matching.Uint, quoteQuantity matching.Uint) {
 }

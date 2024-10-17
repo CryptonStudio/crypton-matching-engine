@@ -109,6 +109,9 @@ func (e *Engine) activateStopOrders(ob *OrderBook, side OrderSide, node *avl.Nod
 }
 
 func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
+	// Call handler before further actions
+	e.handler.OnActivateOrder(ob, order)
+
 	// Check and delete linked orders (OCO)
 	err := e.deleteLinkedOrder(ob, order, true)
 	if err != nil {
@@ -148,6 +151,9 @@ func (e *Engine) activateStopOrder(ob *OrderBook, order *Order) (bool, error) {
 }
 
 func (e *Engine) activateStopLimitOrder(ob *OrderBook, order *Order) (bool, error) {
+	// Call handler before further actions
+	e.handler.OnActivateOrder(ob, order)
+
 	// Check and delete linked orders (OCO)
 	err := e.deleteLinkedOrder(ob, order, true)
 	if err != nil {

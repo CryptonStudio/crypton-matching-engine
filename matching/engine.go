@@ -505,7 +505,7 @@ func (e *Engine) AddTPSLMarket(tp Order, sl Order) error {
 	}
 
 	// Check locked
-	if err := CheckLockedTPSL(&tp, &sl); err != nil {
+	if err := CheckLockedTPSLMarket(&tp, &sl); err != nil {
 		return err
 	}
 

@@ -34,6 +34,18 @@ func (m *MockHandler) EXPECT() *MockHandlerMockRecorder {
 	return m.recorder
 }
 
+// OnActivateOrder mocks base method.
+func (m *MockHandler) OnActivateOrder(arg0 *matching.OrderBook, arg1 *matching.Order) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "OnActivateOrder", arg0, arg1)
+}
+
+// OnActivateOrder indicates an expected call of OnActivateOrder.
+func (mr *MockHandlerMockRecorder) OnActivateOrder(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnActivateOrder", reflect.TypeOf((*MockHandler)(nil).OnActivateOrder), arg0, arg1)
+}
+
 // OnAddOrder mocks base method.
 func (m *MockHandler) OnAddOrder(arg0 *matching.OrderBook, arg1 *matching.Order) {
 	m.ctrl.T.Helper()

@@ -24,6 +24,7 @@ func TestCalculationRound(t *testing.T) {
 		handler := mockmatching.NewMockHandler(ctrl)
 		handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
 		handler.EXPECT().OnAddOrder(gomock.Any(), gomock.Any()).AnyTimes()
+		handler.EXPECT().OnActivateOrder(gomock.Any(), gomock.Any()).AnyTimes()
 		handler.EXPECT().OnAddPriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
 		handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).AnyTimes()
 		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).AnyTimes()

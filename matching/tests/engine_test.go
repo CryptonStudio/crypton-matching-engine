@@ -545,6 +545,7 @@ func setupMarketState(t *testing.T, engine *matching.Engine, symbolID uint32) {
 func setupMockHandler(t *testing.T, handler *mockmatching.MockHandler) {
 	handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
 	handler.EXPECT().OnAddOrder(gomock.Any(), gomock.Any()).AnyTimes()
+	handler.EXPECT().OnActivateOrder(gomock.Any(), gomock.Any()).AnyTimes()
 	handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Do(
 		func(orderBook *matching.OrderBook, order *matching.Order) {
 			if order.ID() == 0 {

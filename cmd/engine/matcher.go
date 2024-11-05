@@ -17,6 +17,8 @@ type Matcher struct {
 	totalUpdates      uint64
 }
 
+func (m *Matcher) OnActivateOrder(orderBook *matching.OrderBook, order *matching.Order) {}
+
 func (m *Matcher) OnAddOrderBook(orderBook *matching.OrderBook) {
 	atomic.AddUint64(&m.orderBookUpdates[0], 1)
 	atomic.AddUint64(&m.totalUpdates, 1)

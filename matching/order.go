@@ -439,6 +439,14 @@ func (o *Order) IsLockingQuote() bool {
 	return o.direction == OrderDirectionOpen
 }
 
+func (o *Order) IsEndByPrice(priceOfLevel Uint) bool {
+	if o.IsBuy() {
+		return o.price.LessThan(priceOfLevel)
+	} else {
+		return o.price.GreaterThan(priceOfLevel)
+	}
+}
+
 // CheckLocked checks locked quantity,
 // all combinations of orders need exact minimum locked amount,
 // except Buy Market Base, Sell Market Quote.

@@ -28,10 +28,7 @@ func (e *Engine) match(ob *OrderBook) error {
 			itBid.Next()
 			itAsk.Next()
 			// Find the first order to execute and the first order to reduce
-			// orderBid := topBid.Value().queue.Front()
-			// orderAsk := topAsk.Value().queue.Front()
 			// Execute crossed orders
-			// for orderBid != nil && orderAsk != nil && orderBid.Value != nil && orderAsk.Value != nil {
 			for itBid.Valid() && itAsk.Valid() {
 				if itBid.Current().Value == nil || itAsk.Current().Value == nil {
 					break
@@ -103,20 +100,16 @@ func (e *Engine) match(ob *OrderBook) error {
 				// Next executing order.
 				if !swapped {
 					itBid.Next()
-					// orderBid = orderBid.Next()
 				} else {
 					itAsk.Next()
-					// orderAsk = orderAsk.Next()
 				}
 
 				// If reducing is executed too.
 				if reducingExecuted {
 					if !swapped {
 						itAsk.Next()
-						// orderAsk = orderAsk.Next()
 					} else {
 						itBid.Next()
-						// orderBid = orderBid.Next()
 					}
 				}
 			}
@@ -208,6 +201,24 @@ func (e *Engine) matchMarketOrder(ob *OrderBook, order *Order) error {
 
 // matchOrder matches given order in given order book.
 func (e *Engine) matchOrder(ob *OrderBook, taker *Order) error {
+	// Special case for 'Fill-Or-Kill'
+	if taker.IsFOK() {
+		// Determine the best bid/ask price level
+		var priceLevel *avl.Node[Uint, *PriceLevelL3]
+		if taker.IsBuy() {
+			priceLevel = ob.TopAsk()
+		} else {
+			priceLevel = ob.TopBid()
+		}
+		if priceLevel == nil {
+			return nil
+		}
+
+		if !e.canExecuteChain(taker, priceLevel) {
+			return nil
+		}
+	}
+
 	// Start the matching from the top of the book
 	for {
 		// Determine the best bid/ask price level
@@ -222,18 +233,7 @@ func (e *Engine) matchOrder(ob *OrderBook, taker *Order) error {
 		}
 
 		// Check the arbitrage bid/ask prices
-		if taker.IsBuy() {
-			if taker.price.LessThan(priceLevel.Value().Price()) {
-				return nil
-			}
-		} else {
-			if taker.price.GreaterThan(priceLevel.Value().Price()) {
-				return nil
-			}
-		}
-
-		// Special case for 'Fill-Or-Kill'
-		if taker.IsFOK() && !e.canExecuteChain(taker, priceLevel) {
+		if taker.IsEndByPrice(priceLevel.Value().Price()) {
 			return nil
 		}
 
@@ -308,15 +308,19 @@ func (e *Engine) matchOrder(ob *OrderBook, taker *Order) error {
 // canExecuteChain have to be used for FOK orders to check if full execution is possible
 // here we can only deal with limit type.
 func (e *Engine) canExecuteChain(
-	reducingOrder *Order,
-	executing *avl.Node[Uint, *PriceLevelL3],
+	taker *Order,
+	priceLevel *avl.Node[Uint, *PriceLevelL3],
 ) bool {
-	required := reducingOrder.quantity
+	required := taker.quantity
 
 	// Travel through price levels
-	for executing != nil {
+	for priceLevel != nil {
+		if taker.IsEndByPrice(priceLevel.Value().Price()) {
+			return false
+		}
+
 		// Travel through orders at current price levels
-		it := executing.Value().Iterator()
+		it := priceLevel.Value().Iterator()
 		for it.Next() {
 			order := it.Current().Value
 			if order == nil {
@@ -331,7 +335,7 @@ func (e *Engine) canExecuteChain(
 			required = required.Sub(quantity)
 		}
 
-		executing = executing.NextRight()
+		priceLevel = priceLevel.NextRight()
 	}
 
 	// Matching is not available

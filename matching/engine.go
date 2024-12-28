@@ -146,6 +146,7 @@ func (e *Engine) AddOrderBook(symbol Symbol, marketPrice Uint, spModesConfig Sto
 
 	// Run goroutine unique to the order book to perform order book specific tasks
 	if e.multithread {
+		orderBook.wg.Add(1)
 		go e.loopOrderBook(orderBook)
 	}
 
@@ -916,7 +917,6 @@ func (e *Engine) Match() {
 
 // loopOrderBook is unique for order book goroutine separately working with given order book and performing enqueued tasks.
 func (e *Engine) loopOrderBook(ob *OrderBook) {
-	ob.wg.Add(1)
 	defer ob.wg.Done()
 
 	// Loop over order book tasks from the queue

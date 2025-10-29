@@ -505,6 +505,56 @@ func TestBasic(t *testing.T) {
 		)
 		require.NoError(t, err)
 	})
+
+	t.Run("edge case: qty same, quote different", func(t *testing.T) {
+		/* complex combination of price, direction, available, restQuantity and restQuoteQuantity
+		cause panic: underflow
+		*/
+		handler := mockmatching.NewMockHandler(ctrl)
+		// order adding
+		handler.EXPECT().OnAddOrderBook(gomock.Any()).Times(1)
+		handler.EXPECT().OnAddOrder(gomock.Any(), gomock.Any()).Times(2)
+		handler.EXPECT().OnAddPriceLevel(gomock.Any(), gomock.Any()).Times(1)
+		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).Times(1)
+		// matching
+		handler.EXPECT().OnDeletePriceLevel(gomock.Any(), gomock.Any()).Times(1)
+		handler.EXPECT().OnUpdatePriceLevel(gomock.Any(), gomock.Any()).Times(1)
+		handler.EXPECT().OnUpdateOrderBook(gomock.Any()).Times(2)
+		handler.EXPECT().OnDeleteOrder(gomock.Any(), gomock.Any()).Times(2)
+		handler.EXPECT().OnExecuteOrder(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
+		handler.EXPECT().OnExecuteTrade(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+		handler.EXPECT().OnUpdateOrder(gomock.Any(), gomock.Any()).Times(2)
+
+		engine := matching.NewEngine(handler, false)
+		engine.EnableMatching()
+
+		_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
+		require.NoError(t, err)
+
+		price, err := matching.NewUintFromFloatString("1.0001")
+		require.NoError(t, err)
+
+		o1 := matching.NewLimitOrder(symbolID, orderID, matching.OrderSideBuy,
+			matching.OrderDirectionOpen, matching.OrderTimeInForceGTC,
+			price, matching.NewUint(1).Mul64(matching.UintPrecision),
+			matching.NewMaxUint(),
+			matching.NewUint(1).Mul64(matching.UintPrecision).Add64(1),
+		)
+
+		o2 := matching.NewMarketOrder(symbolID, orderID+1, matching.OrderSideSell,
+			matching.OrderDirectionOpen, matching.OrderTimeInForceIOC,
+			matching.NewZeroUint(),
+			matching.NewUint(1).Mul64(matching.UintPrecision).Add64(2),
+			matching.NewMaxUint(),
+			matching.NewUint(1).Mul64(matching.UintPrecision).Add64(2),
+		)
+
+		err = engine.AddOrder(o1)
+		require.NoError(t, err)
+		err = engine.AddOrder(o2)
+		require.NoError(t, err)
+	})
+
 }
 
 // This function is helper to define base bids and asks (not recommended to modify)

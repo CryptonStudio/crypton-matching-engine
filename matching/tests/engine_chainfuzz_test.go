@@ -95,6 +95,7 @@ func testChainOrders(t *testing.T, stateRaw, sellChainRaw, buyChainRaw []byte) {
 		}
 
 		if err != nil && !errors.Is(err, matching.ErrInvalidOrderPrice) &&
+			!errors.Is(err, matching.ErrNotEnoughLockedAmount) &&
 			!errors.Is(err, matching.ErrInvalidOrderQuantity) &&
 			!errors.Is(err, matching.ErrInvalidOrderQuoteQuantity) &&
 			!errors.Is(err, matching.ErrInvalidMarketSlippage) &&
@@ -136,7 +137,7 @@ func stateAndChainToString(state chainStateData, orders []sequenceItem) string {
 			lines = append(lines, "orders pair:")
 		}
 		for i := range oo.orders {
-			lines = append(lines, fmt.Sprintf("id=%d type=%s side=%s, direction=%s, tif=%s, price=%s, stop price=%s, quantity=%s quoteQuant=%s availableQty=%s restQty=%s",
+			lines = append(lines, fmt.Sprintf("id=%d type=%s side=%s, direction=%s, tif=%s, price=%s, stop price=%s, quantity=%s quoteQuant=%s availableQty=%s restQty=%s marketSlippage=%s",
 				oo.orders[i].ID(),
 				oo.orders[i].Type().String(),
 				oo.orders[i].Side().String(),
@@ -148,6 +149,7 @@ func stateAndChainToString(state chainStateData, orders []sequenceItem) string {
 				oo.orders[i].QuoteQuantity().ToFloatString(),
 				oo.orders[i].Available().ToFloatString(),
 				oo.orders[i].RestQuantity().ToFloatString(),
+				oo.orders[i].MarketSlippage().ToFloatString(),
 			))
 		}
 	}
@@ -192,12 +194,13 @@ type chainOrderDataRaw struct {
 	// 2 bit tpMode (10)
 	// 2 bit slMode (12)
 	// == 14 bit
-	Enums     uint16
-	Price     uint16
-	Quantity  uint16
-	StopPrice uint16
-	Slippage  uint16
-	Visible   uint16
+	Enums      uint16
+	Price      uint16
+	Quantity   uint16
+	StopPrice  uint16
+	Slippage   uint16
+	Visible    uint16
+	RestLocked uint16
 	// TPSL limit part
 	TpStopPrice uint16
 	TpPrice     uint16
@@ -342,28 +345,35 @@ func parseOrderSequence(side matching.OrderSide, startID uint64, inp []byte) ([]
 		stopPrice := u16U(dt.StopPrice)
 		slippage := u16U(dt.Slippage)
 		visible := u16U(dt.Visible)
+		restLocked := u16U(dt.RestLocked)
 
 		if quantity.IsZero() {
 			return nil, matching.ErrInvalidOrderQuantity
+		}
+		if restLocked.IsZero() {
+			return nil, matching.ErrNotEnoughLockedAmount
 		}
 		if (typ == matching.OrderTypeStopLimit || typ == orderTypeOCO) && price.Equals(stopPrice) {
 			return nil, matching.ErrInvalidOrderStopPrice
 		}
 
-		restLocked := quantity
-		if dir == matching.OrderDirectionOpen {
-			if typ == matching.OrderTypeLimit || typ == matching.OrderTypeStopLimit {
-				restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
+		// NOTE: this code is keep as documentation for restLocked calculation
+		/*
+			restLocked := quantity
+			if dir == matching.OrderDirectionOpen {
+				if typ == matching.OrderTypeLimit || typ == matching.OrderTypeStopLimit {
+					restLocked = quantity.Mul(price).Div64(matching.UintPrecision)
+				}
+				if typ == orderTypeOCO {
+					restLocked = matching.Max(quantity.Mul(price).Div64(matching.UintPrecision), quantity.Mul(stopPrice).Div64(matching.UintPrecision))
+				}
+				if typ == orderTypeTPSLLimit {
+					tpPrice := u16U(dt.TpPrice)
+					slPrice := u16U(dt.SlPrice)
+					restLocked = matching.Max(quantity.Mul(tpPrice).Div64(matching.UintPrecision), quantity.Mul(slPrice).Div64(matching.UintPrecision))
+				}
 			}
-			if typ == orderTypeOCO {
-				restLocked = matching.Max(quantity.Mul(price).Div64(matching.UintPrecision), quantity.Mul(stopPrice).Div64(matching.UintPrecision))
-			}
-			if typ == orderTypeTPSLLimit {
-				tpPrice := u16U(dt.TpPrice)
-				slPrice := u16U(dt.SlPrice)
-				restLocked = matching.Max(quantity.Mul(tpPrice).Div64(matching.UintPrecision), quantity.Mul(slPrice).Div64(matching.UintPrecision))
-			}
-		}
+		*/
 
 		switch typ {
 		case matching.OrderTypeLimit:

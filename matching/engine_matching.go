@@ -258,10 +258,11 @@ func (e *Engine) matchOrder(ob *OrderBook, taker *Order) error {
 			}
 
 			// Choose less qty as qty for trade
-			if makerQty.LessThan(qty) {
+			if makerQty.LessThanOrEqualTo(qty) {
 				qty = makerQty
 				// need to calc like this because of crossed qty and price
-				quoteQty = makerQuoteQty
+				// use Min(), because can be makerQty == qty, but makerQuote < quote or quote < makerQuote
+				quoteQty = Min(makerQuoteQty, quoteQty)
 			}
 
 			// Calc quantities and call handlers

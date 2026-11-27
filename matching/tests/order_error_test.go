@@ -1,8 +1,8 @@
 package matching_test
 
 import (
-	"errors"
 	"testing"
+	"time"
 
 	matching "github.com/cryptonstudio/crypton-matching-engine/matching"
 	mockmatching "github.com/cryptonstudio/crypton-matching-engine/matching/mocks"
@@ -109,7 +109,7 @@ func TestOrderError(t *testing.T) {
 
 			for _, got := range []error{handled, err} {
 				var orderErr *matching.OrderError
-				require.True(t, errors.As(got, &orderErr))
+				require.ErrorAs(t, got, &orderErr)
 				require.Equal(t, tc.op, orderErr.Op)
 				require.Equal(t, tc.orderID, orderErr.OrderID)
 				require.Equal(t, tc.linkedOrderID, orderErr.LinkedOrderID)
@@ -129,6 +129,7 @@ func TestOrderErrorAsync(t *testing.T) {
 	handler.EXPECT().OnAddOrderBook(gomock.Any()).AnyTimes()
 
 	engine := matching.NewEngine(handler, true)
+	defer engine.Stop(false)
 	engine.EnableMatching()
 	_, err := engine.AddOrderBook(matching.NewSymbol(symbolID, ""), matching.NewUint(0), matching.StopPriceModeConfig{Market: true})
 	require.NoError(t, err)
@@ -141,11 +142,15 @@ func TestOrderErrorAsync(t *testing.T) {
 
 	require.NoError(t, engine.DeleteOrder(symbolID, 999))
 
-	got := <-handled
-	engine.Stop(false)
+	var got error
+	select {
+	case got = <-handled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("OnError is not called")
+	}
 
 	var orderErr *matching.OrderError
-	require.True(t, errors.As(got, &orderErr))
+	require.ErrorAs(t, got, &orderErr)
 	require.Equal(t, matching.OrderOpDelete, orderErr.Op)
 	require.Equal(t, uint64(999), orderErr.OrderID)
 	require.ErrorIs(t, got, matching.ErrOrderNotFound)

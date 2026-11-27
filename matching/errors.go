@@ -48,6 +48,8 @@ var (
 // OrderError is returned by a failed order book task and passed to Handler.OnError,
 // so the handler knows which order the operation was about.
 // For OrderOpAddPair OrderID is the stop-limit order and LinkedOrderID is the limit order.
+// The task may fail after a part of it is applied (an order is added, executed or deleted),
+// so the handler must check the order book state instead of assuming nothing happened.
 type OrderError struct {
 	Op            OrderOp
 	OrderID       uint64
@@ -66,12 +68,8 @@ func (e *OrderError) Unwrap() error {
 	return e.Err
 }
 
-func withOrderError(task func(ob *OrderBook) error, op OrderOp, orderID, linkedOrderID uint64) func(ob *OrderBook) error {
-	return func(ob *OrderBook) error {
-		err := task(ob)
-		if err != nil {
-			return &OrderError{Op: op, OrderID: orderID, LinkedOrderID: linkedOrderID, Err: err}
-		}
-		return nil
+func wrapOrderError(err *error, op OrderOp, orderID, linkedOrderID uint64) {
+	if *err != nil {
+		*err = &OrderError{Op: op, OrderID: orderID, LinkedOrderID: linkedOrderID, Err: *err}
 	}
 }

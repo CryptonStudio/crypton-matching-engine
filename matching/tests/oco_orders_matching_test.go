@@ -91,7 +91,7 @@ func TestOCOOrders(t *testing.T) {
 		setupMarketState(t, engine, symbolID)
 		ob := engine.OrderBook(symbolID)
 
-		handler.EXPECT().OnError(ob, matching.ErrBuyOCOStopPriceLessThanMarketPrice)
+		handler.EXPECT().OnError(ob, &matching.OrderError{Op: matching.OrderOpAddPair, OrderID: 6, LinkedOrderID: 7, Err: matching.ErrBuyOCOStopPriceLessThanMarketPrice})
 
 		err := engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
@@ -149,7 +149,7 @@ func TestOCOOrders(t *testing.T) {
 		setupMarketState(t, engine, symbolID)
 		ob := engine.OrderBook(symbolID)
 
-		handler.EXPECT().OnError(ob, matching.ErrBuyOCOLimitPriceGreaterThanMarketPrice)
+		handler.EXPECT().OnError(ob, &matching.OrderError{Op: matching.OrderOpAddPair, OrderID: 6, LinkedOrderID: 7, Err: matching.ErrBuyOCOLimitPriceGreaterThanMarketPrice})
 
 		err := engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
@@ -207,7 +207,7 @@ func TestOCOOrders(t *testing.T) {
 		setupMarketState(t, engine, symbolID)
 		ob := engine.OrderBook(symbolID)
 
-		handler.EXPECT().OnError(ob, matching.ErrSellOCOStopPriceGreaterThanMarketPrice)
+		handler.EXPECT().OnError(ob, &matching.OrderError{Op: matching.OrderOpAddPair, OrderID: 6, LinkedOrderID: 7, Err: matching.ErrSellOCOStopPriceGreaterThanMarketPrice})
 
 		err := engine.AddOrder(matching.NewLimitOrder(
 			symbolID,
@@ -265,7 +265,7 @@ func TestOCOOrders(t *testing.T) {
 		setupMarketState(t, engine, symbolID)
 		ob := engine.OrderBook(symbolID)
 
-		handler.EXPECT().OnError(ob, matching.ErrSellOCOLimitPriceLessThanMarketPrice)
+		handler.EXPECT().OnError(ob, &matching.OrderError{Op: matching.OrderOpAddPair, OrderID: 6, LinkedOrderID: 7, Err: matching.ErrSellOCOLimitPriceLessThanMarketPrice})
 
 		err := engine.AddOrder(matching.NewLimitOrder(
 			symbolID,

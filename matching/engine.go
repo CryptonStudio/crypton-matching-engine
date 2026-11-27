@@ -299,7 +299,7 @@ func (e *Engine) AddOrder(order Order) error {
 		}
 	}
 
-	return e.performOrderBookTask(ob, task)
+	return e.performOrderBookTask(ob, withOrderError(task, OrderOpAdd, order.id, 0))
 }
 
 // AddOrdersPair adds new orders pair (OCO orders) to the engine.
@@ -391,7 +391,7 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 		return nil
 	}
 
-	return e.performOrderBookTask(ob, task)
+	return e.performOrderBookTask(ob, withOrderError(task, OrderOpAddPair, stopLimitOrder.id, limitOrder.id))
 }
 
 // AddTPSL adds new orders pair take-profit and stop-loss (OCO orders) to the engine.
@@ -704,7 +704,7 @@ func (e *Engine) DeleteOrder(symbolID uint32, orderID uint64) error {
 		return e.deleteOrder(ob, order, false)
 	}
 
-	return e.performOrderBookTask(ob, task)
+	return e.performOrderBookTask(ob, withOrderError(task, OrderOpDelete, orderID, 0))
 }
 
 // ExecuteOrder executes the order by the given quantity.

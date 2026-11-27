@@ -2,6 +2,7 @@ package matching
 
 import (
 	"errors"
+	"fmt"
 )
 
 // Errors used by the package.
@@ -43,3 +44,34 @@ var (
 	// Internal Errors
 	ErrInternalExecutingOrderNotExecuted = errors.New("internal matching error: executing order not executed")
 )
+
+// OrderError is returned by a failed order book task and passed to Handler.OnError,
+// so the handler knows which order the operation was about.
+// For OrderOpAddPair OrderID is the stop-limit order and LinkedOrderID is the limit order.
+type OrderError struct {
+	Op            OrderOp
+	OrderID       uint64
+	LinkedOrderID uint64
+	Err           error
+}
+
+func (e *OrderError) Error() string {
+	if e.LinkedOrderID != 0 {
+		return fmt.Sprintf("%s order %d (linked %d): %v", e.Op, e.OrderID, e.LinkedOrderID, e.Err)
+	}
+	return fmt.Sprintf("%s order %d: %v", e.Op, e.OrderID, e.Err)
+}
+
+func (e *OrderError) Unwrap() error {
+	return e.Err
+}
+
+func withOrderError(task func(ob *OrderBook) error, op OrderOp, orderID, linkedOrderID uint64) func(ob *OrderBook) error {
+	return func(ob *OrderBook) error {
+		err := task(ob)
+		if err != nil {
+			return &OrderError{Op: op, OrderID: orderID, LinkedOrderID: linkedOrderID, Err: err}
+		}
+		return nil
+	}
+}

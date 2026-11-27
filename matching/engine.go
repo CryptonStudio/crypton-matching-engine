@@ -283,7 +283,8 @@ func (e *Engine) AddOrder(order Order) error {
 		return err
 	}
 
-	task := func(ob *OrderBook) error {
+	task := func(ob *OrderBook) (taskErr error) {
+		defer wrapOrderError(&taskErr, OrderOpAdd, order.id, 0)
 		// Add the corresponding order type
 		switch order.orderType {
 		case OrderTypeLimit:
@@ -330,7 +331,8 @@ func (e *Engine) AddOrdersPair(stopLimitOrder Order, limitOrder Order) error {
 	stopLimitOrder.linkedOrderID = limitOrder.id
 	limitOrder.linkedOrderID = stopLimitOrder.id
 
-	task := func(ob *OrderBook) error {
+	task := func(ob *OrderBook) (taskErr error) {
+		defer wrapOrderError(&taskErr, OrderOpAddPair, stopLimitOrder.id, limitOrder.id)
 
 		// Check market price
 		if stopLimitOrder.IsBuy() {
@@ -686,7 +688,8 @@ func (e *Engine) DeleteOrder(symbolID uint32, orderID uint64) error {
 		return ErrOrderBookNotFound
 	}
 
-	task := func(ob *OrderBook) error {
+	task := func(ob *OrderBook) (taskErr error) {
+		defer wrapOrderError(&taskErr, OrderOpDelete, orderID, 0)
 
 		// Get the order by given id
 		order := ob.Order(orderID)

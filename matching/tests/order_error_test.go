@@ -23,6 +23,7 @@ func TestOrderError(t *testing.T) {
 		orderID       uint64
 		linkedOrderID uint64
 		cause         error
+		checkBook     func(t *testing.T, ob *matching.OrderBook)
 	}{
 		{
 			name: "add",
@@ -42,6 +43,9 @@ func TestOrderError(t *testing.T) {
 			op:      matching.OrderOpAdd,
 			orderID: 1,
 			cause:   matching.ErrOrderDuplicate,
+			checkBook: func(t *testing.T, ob *matching.OrderBook) {
+				require.NotNil(t, ob.Order(1))
+			},
 		},
 		{
 			name: "add pair",
@@ -77,6 +81,10 @@ func TestOrderError(t *testing.T) {
 			orderID:       6,
 			linkedOrderID: 7,
 			cause:         matching.ErrSellOCOStopPriceGreaterThanMarketPrice,
+			checkBook: func(t *testing.T, ob *matching.OrderBook) {
+				require.Nil(t, ob.Order(6))
+				require.Nil(t, ob.Order(7))
+			},
 		},
 		{
 			name: "delete",
@@ -86,6 +94,9 @@ func TestOrderError(t *testing.T) {
 			op:      matching.OrderOpDelete,
 			orderID: 999,
 			cause:   matching.ErrOrderNotFound,
+			checkBook: func(t *testing.T, ob *matching.OrderBook) {
+				require.Nil(t, ob.Order(999))
+			},
 		},
 	}
 
@@ -115,6 +126,8 @@ func TestOrderError(t *testing.T) {
 				require.Equal(t, tc.linkedOrderID, orderErr.LinkedOrderID)
 				require.ErrorIs(t, got, tc.cause)
 			}
+
+			tc.checkBook(t, ob)
 		})
 	}
 }

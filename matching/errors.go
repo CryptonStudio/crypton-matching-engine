@@ -48,8 +48,18 @@ var (
 // OrderError is returned by a failed order book task and passed to Handler.OnError,
 // so the handler knows which order the operation was about.
 // For OrderOpAddPair OrderID is the stop-limit order and LinkedOrderID is the limit order.
+//
 // The task may fail after a part of it is applied (an order is added, executed or deleted),
-// so the handler must check the order book state instead of assuming nothing happened.
+// so OrderID does not prove that the order is absent from the order book.
+// The order book is left unchanged only for these causes (check Err with errors.Is):
+//   - OrderOpAddPair: ErrBuyOCOStopPriceLessThanMarketPrice, ErrBuyOCOLimitPriceGreaterThanMarketPrice,
+//     ErrSellOCOStopPriceGreaterThanMarketPrice, ErrSellOCOLimitPriceLessThanMarketPrice -
+//     neither order is added;
+//   - OrderOpDelete: ErrOrderNotFound - the order is not in the order book.
+//
+// Any other cause may come after the order book is changed. In particular, ErrOrderDuplicate
+// means that an order with this ID is already in the order book, and errors of stop orders
+// activated while adding an order are reported with OrderID of the added order.
 type OrderError struct {
 	Op            OrderOp
 	OrderID       uint64
